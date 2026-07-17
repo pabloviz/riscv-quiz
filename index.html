@@ -92,41 +92,58 @@ let questions = [];
   function handleQuizData(payload) {
     const badgeElement = document.getElementById('badge');
     
-    // 1. Actualizamos el Badge con los puntos y el ranking en tiempo real
+    // 1. Estructuramos el contenido de texto que queremos mostrar
+    let pointsText = "";
+    let isError = false;
+
     if (payload.points === "No points yet") {
-      badgeElement.innerHTML = "Points: No points yet";
-      badgeElement.style.background = "#e53e3e"; 
-      badgeElement.style.display = 'block';
+      pointsText = "Points: No points yet";
+      isError = true;
     } else {
       const hasPosition = payload.position !== undefined && payload.position !== "";
       const positionSuffix = hasPosition ? ` (#${payload.position} position)` : "";
-      
-      badgeElement.innerHTML = `Points: <span id="points-value">${payload.points}</span>${positionSuffix}`;
-      badgeElement.style.background = "#38a169"; 
-      badgeElement.style.display = 'block';
+      pointsText = `Points: <span id="points-value">${payload.points}</span>${positionSuffix}`;
     }
     
-    // 2. Control de renderizado inicial (Solo se ejecuta la primera vez que abre la página)
+    // 2. Control de renderizado inicial (Solo la primera vez que abre la página)
     if (questions.length === 0) {
       questions = payload.questions;
       renderQuizStructure();
     }
     
-    // 3. APAGAMOS EL LOADING Y LEVANTAMOS EL CONTENEDOR EN CADA LLAMADA
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('quiz-container').style.display = 'block';
-    
-    // 4. Forzamos la activación visual de la pregunta correspondiente
-    document.getElementById('step-' + currentQuestionIndex).classList.add('active');
-    questionStartTime = Date.now(); // Arrancamos el cronómetro de la pregunta actual
-    
-    // 5. Si el alumno está en la pantalla final, reactivamos el botón de refresco
+    // 3. Renderizado condicional basado en si el alumno está en el Quiz o en la Pantalla Final
     const refreshBtn = document.getElementById('refresh-score-btn');
+    
     if (refreshBtn) {
+      // SI EL ALUMNO ESTÁ EN LA PANTALLA FINAL:
+      // Mantenemos el badge oculto pero actualizamos el texto del botón final de forma dinámica
+      badgeElement.style.display = 'none';
+      
+      // Actualizamos el subtítulo de la pantalla final con la nota y el ranking actualizados
+      const successParagraph = document.querySelector('.quiz-success-p');
+      if (successParagraph) {
+        successParagraph.innerHTML = `We hope you enjoyed the quiz for this lecture.<br><br><strong>Current Score: ${pointsText}</strong>`;
+      }
+      
+      // SOLUCIÓN AL BLOQUEO: Reactivamos el botón final para permitir infinitos clics
       refreshBtn.innerText = "Update Score";
       refreshBtn.disabled = false;
+      
+    } else {
+      // SI EL ALUMNO SIGUE RESPONDIENDO PREGUNTAS:
+      // Pintamos la medalla superior normal encima del cuadro blanco
+      badgeElement.innerHTML = pointsText;
+      badgeElement.style.background = isError ? "#e53e3e" : "#38a169";
+      badgeElement.style.display = 'block';
+      
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('quiz-container').style.display = 'block';
+      document.getElementById('step-' + currentQuestionIndex).classList.add('active');
     }
+    
+    questionStartTime = Date.now();
   }
+
 
   // Inyección dinámica de Script para saltar las restricciones de CORS
   function fetchBackendData() {
