@@ -17,7 +17,7 @@
     .points-badge {
       background: #38a169;
       color: white;
-      padding: 12px 0; /* Eliminamos el padding lateral para evitar el desborde */
+      padding: 0px 0; /* Eliminamos el padding lateral para evitar el desborde */
       border-radius: 30px;
       font-weight: bold;
       font-size: 18px;
@@ -67,40 +67,55 @@
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
-	 let questions = [];
+  let questions = [];
   let studentUid = ''; 
   let questionStartTime = null;
-  let staticPoints = 0; // Variable inicializada en 0 para este paso
+  let currentQuestionIndex = 0; // Seguimiento del índice actual de la pantalla
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
   function generateCleanID() {
     return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
+  // FUNCIÓN DE RECEPCIÓN JSONP CENTRALIZADA
+  function handleQuizData(payload) {
+    // 1. Actualizamos la medalla con el valor en tiempo real traído desde Processed!B7
+    document.getElementById('points-value').innerText = payload.points;
+    document.getElementById('badge').style.display = 'block';
+    
+    // 2. Si es la primera carga, renderizamos el esqueleto del quiz
+    if (questions.length === 0) {
+      questions = payload.questions;
+      renderQuizStructure();
+    }
+    
+    // 3. Activamos la pantalla correspondiente y arrancamos el cronómetro
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('step-' + currentQuestionIndex).classList.add('active');
+    questionStartTime = Date.now();
+  }
+
+  // Función interna para consultar al backend vía inyección dinámica de Script (Evita CORS)
+  function fetchBackendData() {
+    // Removemos scripts JSONP antiguos del DOM para evitar saturación de memoria
+    const oldScript = document.getElementById('jsonp-runner');
+    if (oldScript) oldScript.remove();
+
+    const script = document.createElement('script');
+    script.id = 'jsonp-runner';
+    script.src = `${API_URL}?callback=handleQuizData&t=${Date.now()}`; // Añadimos timestamp para romper la caché del navegador
+    script.onerror = function() {
+      document.getElementById('loading').innerText = "Failed to connect to backend server.";
+    };
+    document.body.appendChild(script);
+  }
+
   window.onload = function() {
     studentUid = generateCleanID();
-
-    // Petición GET estable original para renderizar la plantilla sin tocar el servidor para los puntos
-    fetch(API_URL)
-      .then(res => res.text())
-      .then(text => {
-        const data = JSON.parse(text);
-        
-        // Forzamos que la medalla muestre el valor 0 de la variable estática
-        document.getElementById('points-value').innerText = staticPoints;
-        
-        renderQuiz(data);
-        questionStartTime = Date.now(); 
-      })
-      .catch(err => {
-        document.getElementById('loading').innerText = "Failed to connect to backend server.";
-        console.error(err);
-      });
+    fetchBackendData(); // Ejecuta la carga inicial de datos
   };
 
-  function renderQuiz(formQuestions) {
-    questions = formQuestions;
-    document.getElementById('loading').style.display = 'none';
+  function renderQuizStructure() {
     const container = document.getElementById('quiz-container');
     container.style.display = 'block';
 
@@ -112,7 +127,7 @@
     questions.forEach((q, index) => {
       const stepDiv = document.createElement('div');
       stepDiv.id = 'step-' + index;
-      stepDiv.className = 'step' + (index === 0 ? ' active' : '');
+      stepDiv.className = 'step'; // Inicialmente ocultos, handleQuizData activa el correcto
 
       let inputHtml = '';
 
@@ -190,12 +205,16 @@
       })
     })
     .then(() => {
+      // Ocultamos la pantalla actual
       document.getElementById('step-' + index).classList.remove('active');
+      
       if (index < questions.length - 1) {
-        questionStartTime = Date.now(); 
-        document.getElementById('step-' + (index + 1)).classList.add('active');
+        // Incrementamos el índice de la pregunta global
+        currentQuestionIndex = index + 1;
+        
+        // Antes de mostrar la siguiente pregunta, refrescamos los puntos haciendo una llamada silenciosa GET
+        fetchBackendData(); 
       } else {
-        // Al terminar, ocultamos la medalla para dejar limpia la pantalla de éxito
         if (document.getElementById('badge')) {
           document.getElementById('badge').style.display = 'none';
         }
