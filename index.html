@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quiz Estudiantes</title>
+  <title>Quiz RISC-V</title>
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; }
     #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; }
@@ -39,7 +39,7 @@
 </head>
 <body>
 
-  <div id="loading">Cargando cuestionario...</div>
+  <div id="loading">Loading quiz...</div>
   <div id="quiz-container" style="display:none;"></div>
 
   <script>
@@ -113,7 +113,7 @@
           });
           inputHtml += `</div>`;
         } else {
-          inputHtml = `<input type="text" id="input-${index}" placeholder="Escribe tu respuesta aquí...">`;
+          inputHtml = `<input type="text" id="input-${index}" placeholder="Write your answer here...">`;
         }
 
         stepDiv.innerHTML = `
@@ -164,7 +164,7 @@
 						if (index < questions.length - 1) {
 						document.getElementById('step-' + (index + 1)).classList.add('active');
 						} else {
-						document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
+						document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>Hope you enjoyed the lecture!.</div>";
 						}
 						}, 600); // 600ms son suficientes para que el Lock del servidor organice las filas
 				})
