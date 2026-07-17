@@ -92,12 +92,12 @@
   function handleQuizData(payload) {
     const badgeElement = document.getElementById('badge');
     
+    // 1. Actualizamos el Badge con los puntos y el ranking en tiempo real
     if (payload.points === "No points yet") {
       badgeElement.innerHTML = "Points: No points yet";
       badgeElement.style.background = "#e53e3e"; 
       badgeElement.style.display = 'block';
     } else {
-      // Si la posición calculada es válida, agregamos el sufijo solicitado
       const hasPosition = payload.position !== undefined && payload.position !== "";
       const positionSuffix = hasPosition ? ` (#${payload.position} position)` : "";
       
@@ -106,15 +106,23 @@
       badgeElement.style.display = 'block';
     }
     
+    // 2. Control de renderizado inicial
     if (questions.length === 0) {
       questions = payload.questions;
       renderQuizStructure();
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('step-0').classList.add('active');
+      questionStartTime = Date.now();
     }
     
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('step-' + currentQuestionIndex).classList.add('active');
-    questionStartTime = Date.now();
+    // 3. NUEVO: Si el alumno ya está en la pantalla final, reactivamos el botón de refresco
+    const refreshBtn = document.getElementById('refresh-score-btn');
+    if (refreshBtn) {
+      refreshBtn.innerText = "Update Score";
+      refreshBtn.disabled = false;
+    }
   }
+
 
 
 
@@ -134,6 +142,18 @@
     };
     document.body.appendChild(script);
   }
+
+  // Nueva función para lanzar la petición de actualización desde el botón final
+  function triggerScoreRefresh() {
+    const refreshBtn = document.getElementById('refresh-score-btn');
+    if (refreshBtn) {
+      refreshBtn.innerText = "Updating...";
+      refreshBtn.disabled = true;
+    }
+    // Lanza la llamada silenciosa JSONP que actualizará el badge y reactivará el botón al terminar
+    fetchBackendData(); 
+  }
+
 
 
   window.onload = function() {
@@ -232,18 +252,17 @@
     })
     .then(() => {
       document.getElementById('step-' + index).classList.remove('active');
-      
       if (index < questions.length - 1) {
         questionStartTime = Date.now(); 
         currentQuestionIndex = index + 1;
         fetchBackendData(); 
       } else {
-        // Clonamos el contenido completo de la medalla superior (Puntos + Ranking)
-        const finalBadgeContent = document.getElementById('badge').innerHTML;
-        
+        // PANTALLA FINAL MODIFICADA: Mantenemos el badge visible e inyectamos el botón de refresco
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
-          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.<br><br><strong>${finalBadgeContent}</strong></div>
+          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
+          <br>
+          <button id="refresh-score-btn" onclick="triggerScoreRefresh()">Update Score</button>
         `;
       }
     })
