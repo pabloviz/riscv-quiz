@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -45,23 +46,29 @@
     // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT WEB APP
 		const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'
 
-    let serverRowId = null;
     let questions = [];
+    let studentUid = ''; 
     const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-		window.onload = function() {
-			// Consumimos el método GET modificado
-			fetch(API_URL)
-				.then(res => res.text()) // Leemos la respuesta como texto plano primero
-				.then(text => {
-						const data = JSON.parse(text); // Parseamos manualmente a objeto JS
-						renderQuiz(data);
-						})
-			.catch(err => {
-					document.getElementById('loading').innerText = "Error al conectar con el servidor.";
-					console.error(err);
-					});
-		};
+    // Generador básico de IDs únicos para la sesión del alumno
+    function generateUUID() {
+      return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+    }
+
+    window.onload = function() {
+      studentUid = generateUUID(); // Inicializamos el ID único del alumno al abrir la web
+      
+      fetch(API_URL)
+        .then(res => res.text())
+        .then(text => {
+          const data = JSON.parse(text);
+          renderQuiz(data);
+        })
+        .catch(err => {
+          document.getElementById('loading').innerText = "Error al conectar con el servidor.";
+          console.error(err);
+        });
+    };
 
     function renderQuiz(formQuestions) {
       questions = formQuestions;
@@ -140,24 +147,23 @@
       btn.innerText = "Loading...";
       btn.disabled = true;
 
-      // Enviamos los datos parciales usando un fetch POST asíncrono estándar
       fetch(API_URL, {
         method: 'POST',
-        mode: 'no-cors', // Evita bloqueos de seguridad del navegador móvil
+        mode: 'no-cors', 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rowId: serverRowId,
+          studentUid: studentUid, // Enviamos el UID en lugar del número de fila
           qIndex: index,
           value: value
         })
       })
       .then(() => {
-        // Al usar 'no-cors' la respuesta viene opaca, simulamos la persistencia secuencial de la sesión cliente
-        if (!serverRowId) {
-          // Si es el primer paso, esperamos un instante corto para asegurar el appendRow del backend
-          setTimeout(() => { proceed(index); }, 800);
+        // Al usar 'no-cors' la respuesta es opaca, avanzamos directamente
+        document.getElementById('step-' + index).classList.remove('active');
+        if (index < questions.length - 1) {
+          document.getElementById('step-' + (index + 1)).classList.add('active');
         } else {
-          proceed(index);
+          document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
         }
       })
       .catch(err => {
@@ -166,19 +172,7 @@
         alert("Error de conexión");
       });
     }
-
-    function proceed(index) {
-      // Como 'no-cors' no nos permite leer el rowId devuelto, mantenemos la sesión activa en memoria local.
-      // Si un alumno refresca la página, iniciará una nueva fila en el Excel (comportamiento ideal para evitar sobreescritura de otros alumnos).
-      serverRowId = serverRowId || "active_session"; 
-      
-      document.getElementById('step-' + index).classList.remove('active');
-      if (index < questions.length - 1) {
-        document.getElementById('step-' + (index + 1)).classList.add('active');
-      } else {
-        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
-      }
-    }
   </script>
 </body>
 </html>
+
