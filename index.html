@@ -106,9 +106,11 @@ let questions = [];
     }
     
     // 2. Control de renderizado inicial (Solo la primera vez que abre la página)
+    let isFirstLoad = false;
     if (questions.length === 0) {
       questions = payload.questions;
       renderQuizStructure();
+      isFirstLoad = true; // Marcamos que es la carga inicial del cuestionario
     }
     
     // 3. Renderizado condicional basado en si el alumno está en el Quiz o en la Pantalla Final
@@ -116,33 +118,36 @@ let questions = [];
     
     if (refreshBtn) {
       // SI EL ALUMNO ESTÁ EN LA PANTALLA FINAL:
-      // Mantenemos el badge oculto pero actualizamos el texto del botón final de forma dinámica
       badgeElement.style.display = 'none';
       
-      // Actualizamos el subtítulo de la pantalla final con la nota y el ranking actualizados
       const successParagraph = document.querySelector('.quiz-success-p');
       if (successParagraph) {
         successParagraph.innerHTML = `We hope you enjoyed the quiz for this lecture.<br><br><strong>Current Score: ${pointsText}</strong>`;
       }
       
-      // SOLUCIÓN AL BLOQUEO: Reactivamos el botón final para permitir infinitos clics
+      // Reactivamos el botón final para permitir infinitos clics
       refreshBtn.innerText = "Update Score";
       refreshBtn.disabled = false;
       
     } else {
-      // SI EL ALUMNO SIGUE RESPONDIENDO PREGUNTAS:
-      // Pintamos la medalla superior normal encima del cuadro blanco
+      // SI EL ALUMNO SIGUE RESPONDIENDO PREGUNTAS (O ES LA PRIMERA CARGA):
       badgeElement.innerHTML = pointsText;
       badgeElement.style.background = isError ? "#e53e3e" : "#38a169";
       badgeElement.style.display = 'block';
       
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('quiz-container').style.display = 'block';
+      // RESTAURADO: Si es la primera carga o una transición, encendemos el contenedor
+      if (isFirstLoad || document.getElementById('quiz-container').style.display === 'none') {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('quiz-container').style.display = 'block';
+      }
+      
+      // Activamos visualmente la pregunta correspondiente si veníamos de un estado de "Loading..."
       document.getElementById('step-' + currentQuestionIndex).classList.add('active');
     }
     
     questionStartTime = Date.now();
   }
+
 
 
   // Inyección dinámica de Script para saltar las restricciones de CORS
