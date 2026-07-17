@@ -58,15 +58,10 @@
   }
 
   window.onload = function() {
-    // Recuperamos o generamos el ID persistente del alumno
-    let localUser = localStorage.getItem('quiz_student_session_id');
-    if (!localUser) {
-      localUser = generateCleanID();
-      localStorage.setItem('quiz_student_session_id', localUser);
-    }
-    studentUid = localUser;
+    // Generamos un ID de sesión único que se mantiene constante a lo largo del cuestionario
+    studentUid = generateCleanID();
 
-    // Hacemos el fetch de lectura básico sin parámetros de usuario
+    // Petición GET estándar para recuperar la estructura de preguntas sin cruces de CORS
     fetch(API_URL)
       .then(res => res.text())
       .then(text => {
