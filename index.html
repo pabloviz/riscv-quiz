@@ -48,13 +48,33 @@
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
 
- let questions = [];
+let questions = [];
   let studentUid = ''; 
   let questionStartTime = null;
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
   function generateCleanID() {
     return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
+
+  // FUNCIÓN DE RECEPCIÓN JSONP: Procesa la lectura evitando el bloqueo de CORS
+  function handleQuizData(payload) {
+    const badgeElement = document.getElementById('badge');
+    const pointsValueElement = document.getElementById('points-value');
+    
+    // MODO VERBOSE EXPLICITO
+    if (payload.points === "not_found") {
+      badgeElement.innerHTML = "User not found";
+      badgeElement.style.background = "#e53e3e"; 
+      badgeElement.style.display = 'block';
+    } else {
+      pointsValueElement.innerText = payload.points;
+      badgeElement.style.background = "#38a169"; 
+      badgeElement.style.display = 'block';
+    }
+    
+    renderQuiz(payload.questions);
+    questionStartTime = Date.now();
   }
 
   window.onload = function() {
@@ -66,32 +86,14 @@
     }
     
     studentUid = localUser;
-    const fetchUrl = `${API_URL}?user=${studentUid}`;
 
-    fetch(fetchUrl)
-      .then(res => res.text())
-      .then(text => {
-        const payload = JSON.parse(text);
-        const badgeElement = document.getElementById('badge');
-        const pointsValueElement = document.getElementById('points-value');
-        
-        if (payload.points === "not_found") {
-          badgeElement.innerHTML = "User not found";
-          badgeElement.style.background = "#e53e3e"; 
-          badgeElement.style.display = 'block';
-        } else {
-          pointsValueElement.innerText = payload.points;
-          badgeElement.style.background = "#38a169"; 
-          badgeElement.style.display = 'block';
-        }
-        
-        renderQuiz(payload.questions);
-        questionStartTime = Date.now(); 
-      })
-      .catch(err => {
-        document.getElementById('loading').innerText = "Failed to connect to backend server.";
-        console.error(err);
-      });
+    // INYECCIÓN DE LLAMADA JSONP (Sustituye al fetch GET)
+    const script = document.createElement('script');
+    script.src = `${API_URL}?user=${studentUid}&callback=handleQuizData`;
+    script.onerror = function() {
+      document.getElementById('loading').innerText = "Failed to connect to backend server.";
+    };
+    document.body.appendChild(script);
   };
 
   function renderQuiz(formQuestions) {
@@ -167,7 +169,7 @@
       const selected = document.querySelector(`input[name="q-${index}"]:checked`);
       value = selected ? selected.value : '';
     } else {
-      value = document.getElementById('input-' + index).value;
+      value = document.getElementById('input-${index}').value;
     }
 
     const timeTaken = Date.now() - questionStartTime;
@@ -206,7 +208,6 @@
       alert("Network connection error");
     });
   }
-
 </script>
 </body>
 </html>
