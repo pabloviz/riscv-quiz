@@ -14,10 +14,10 @@
     .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin: 0; }
     
     /* INSIGNIA DE PUNTOS VISIBLE POR PREGUNTA */
-    .points-badge {
+		.points-badge {
       background: #38a169;
       color: white;
-      padding: 12px 24px;
+      padding: 14px 24px;
       border-radius: 30px;
       font-weight: bold;
       font-size: 18px;
@@ -26,12 +26,11 @@
       display: none;
       animation: fadeIn 0.4s ease forwards;
       
-      /* AJUSTE FIJO PARA EVITAR EL DESBORDE LATERAL */
-      width: 100%;
-      max-width: 650px; /* Exactamente el mismo ancho máximo del contenedor del quiz */
+      /* AJUSTE FIJO DEFINITIVO CONTRA EL DESBORDE */
+      width: auto;
+      align-self: stretch; /* Se estira simulando exactamente las dimensiones del cuadro de abajo */
       box-sizing: border-box;
       text-align: center;
-      margin: 0 auto; /* Lo mantiene perfectamente alineado al centro geométrico */
     }
     
     .step { display: none; }
@@ -81,21 +80,32 @@
 
   // FUNCIÓN DE RECEPCIÓN JSONP CENTRALIZADA
   function handleQuizData(payload) {
-    // 1. Actualizamos la medalla con el valor en tiempo real traído desde Processed!B7
-    document.getElementById('points-value').innerText = payload.points;
-    document.getElementById('badge').style.display = 'block';
+    const badgeElement = document.getElementById('badge');
     
-    // 2. Si es la primera carga, renderizamos el esqueleto del quiz
+    if (payload.points === "No points yet") {
+      badgeElement.innerHTML = "Points: No points yet";
+      badgeElement.style.background = "#e53e3e"; // Rojo si no hay registro
+      badgeElement.style.display = 'block';
+    } else {
+      // FORMATO SOLICITADO: Points: X (#Y position)
+      // Si la posición calculada es válida, agregamos el sufijo del ranking
+      const positionSuffix = payload.position !== "" ? ` (#${payload.position} position)` : "";
+      
+      badgeElement.innerHTML = `Points: <span id="points-value">${payload.points}</span>${positionSuffix}`;
+      badgeElement.style.background = "#38a169"; // Verde si existe
+      badgeElement.style.display = 'block';
+    }
+    
     if (questions.length === 0) {
       questions = payload.questions;
       renderQuizStructure();
     }
     
-    // 3. Activamos la pantalla correspondiente y arrancamos el cronómetro
     document.getElementById('loading').style.display = 'none';
     document.getElementById('step-' + currentQuestionIndex).classList.add('active');
     questionStartTime = Date.now();
   }
+
 
   // Función interna para consultar al backend vía inyección dinámica de Script (Evita CORS)
   function fetchBackendData() {
@@ -210,7 +220,6 @@
       })
     })
     .then(() => {
-      // Ocultamos la pantalla de la pregunta actual
       document.getElementById('step-' + index).classList.remove('active');
       
       if (index < questions.length - 1) {
@@ -218,13 +227,12 @@
         currentQuestionIndex = index + 1;
         fetchBackendData(); 
       } else {
-        // PASO FINAL: Mantenemos la medalla visible arriba y actualizamos la vista de éxito
-        // Recuperamos el valor actual que tiene la medalla en ese momento
-        const finalPoints = document.getElementById('points-value').innerText;
+        // Clonamos el contenido completo de la medalla superior (Puntos + Ranking)
+        const finalBadgeContent = document.getElementById('badge').innerHTML;
         
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
-          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.<br><br><strong>Your final score: ${finalPoints} points</strong></div>
+          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.<br><br><strong>${finalBadgeContent}</strong></div>
         `;
       }
     })
