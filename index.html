@@ -47,10 +47,10 @@
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
+
   let questions = [];
   let studentUid = ''; 
   let questionStartTime = null;
-  let cachedPoints = 0; 
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
   function generateCleanID() {
@@ -58,7 +58,6 @@
   }
 
   window.onload = function() {
-    // 1. Recuperamos el ID del almacenamiento local del dispositivo
     let localUser = localStorage.getItem('quiz_student_session_id');
     
     if (!localUser) {
@@ -67,20 +66,26 @@
     }
     
     studentUid = localUser;
-    
-    // 2. Hacemos la consulta directamente usando el studentUid nativo del alumno
     const fetchUrl = `${API_URL}?user=${studentUid}`;
 
     fetch(fetchUrl)
       .then(res => res.text())
       .then(text => {
         const payload = JSON.parse(text);
-        cachedPoints = payload.points || 0; 
+        const badgeElement = document.getElementById('badge');
+        const pointsValueElement = document.getElementById('points-value');
         
-        // 3. Si el alumno ya tiene puntos en la pestaña "Processed", mostramos la medalla encima
-        if (cachedPoints > 0) {
-          document.getElementById('points-value').innerText = cachedPoints;
-          document.getElementById('badge').style.display = 'block';
+        // MODO VERBOSE: Evaluamos la respuesta explícita del servidor
+        if (payload.points === "not_found") {
+          // Si el servidor devuelve "not_found", pintamos el texto de error solicitado
+          badgeElement.innerHTML = "User not found";
+          badgeElement.style.background = "#e53e3e"; // Cambia temporalmente a rojo para resaltar
+          badgeElement.style.display = 'block';
+        } else {
+          // Si el usuario existe, mostramos sus puntos (funcionará tanto para 0 como para cualquier otra nota)
+          pointsValueElement.innerText = payload.points;
+          badgeElement.style.background = "#38a169"; // Aseguramos el verde original
+          badgeElement.style.display = 'block';
         }
         
         renderQuiz(payload.questions);
