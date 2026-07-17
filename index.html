@@ -97,18 +97,21 @@
 
   // Función interna para consultar al backend vía inyección dinámica de Script (Evita CORS)
   function fetchBackendData() {
-    // Removemos scripts JSONP antiguos del DOM para evitar saturación de memoria
     const oldScript = document.getElementById('jsonp-runner');
     if (oldScript) oldScript.remove();
 
     const script = document.createElement('script');
     script.id = 'jsonp-runner';
-    script.src = `${API_URL}?callback=handleQuizData&t=${Date.now()}`; // Añadimos timestamp para romper la caché del navegador
+    
+    // MODIFICADO: Inyectamos de forma segura la variable global studentUid en la petición
+    script.src = `${API_URL}?user=${studentUid}&callback=handleQuizData&t=${Date.now()}`;
+    
     script.onerror = function() {
       document.getElementById('loading').innerText = "Failed to connect to backend server.";
     };
     document.body.appendChild(script);
   }
+
 
   window.onload = function() {
     studentUid = generateCleanID();
