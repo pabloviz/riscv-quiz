@@ -1,14 +1,17 @@
-
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quiz RISC-V</title>
+  <title>Student Quiz Platform</title>
   <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; }
-    #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; position: relative; }
+    #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; position: relative; }
     #loading { text-align: center; font-size: 22px; color: #7f8c8d; font-style: italic; }
+    
+    /* INTERACTIVE POINTS BADGE */
+    .points-badge { position: absolute; top: -20px; right: 20px; background: #38a169; color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(56, 161, 105, 0.3); display: none; }
+    
     .step { display: none; }
     .step.active { display: block; animation: fadeIn 0.4s ease forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -27,10 +30,6 @@
     .color-blue:has(input:checked) { border-color: #3182ce; border-width: 3px; padding: 17px 21px; }
     .color-yellow:has(input:checked) { border-color: #d69e2e; border-width: 3px; padding: 17px 21px; }
     .choice-option input { margin-right: 16px; transform: scale(1.5); cursor: pointer; }
-    .color-red input { accent-color: #e53e3e; }
-    .color-green input { accent-color: #38a169; }
-    .color-blue input { accent-color: #3182ce; }
-    .color-yellow input { accent-color: #d69e2e; }
     button { width: 100%; margin-top: 35px; padding: 18px 24px; font-size: 20px; font-weight: 600; cursor: pointer; background: #6200ee; color: white; border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(98, 0, 238, 0.2); }
     button:disabled { background: #a0aec0; cursor: not-allowed; box-shadow: none; }
     .quiz-success-title { font-size: 32px; font-weight: bold; margin-bottom: 15px; text-align: center; }
@@ -39,46 +38,55 @@
 </head>
 <body>
 
-  <div id="loading">Loading quiz...</div>
-  <div id="quiz-container" style="display:none;"></div>
+  <div id="loading">Loading quiz template...</div>
+  <div id="quiz-container" style="display:none;">
+    <div id="badge" class="points-badge">Points: <span id="points-value">0</span></div>
+    <div id="steps-target"></div>
+  </div>
 
-<script>
-	const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
 
-  let questions = [];
-  let studentUid = ''; 
-  let questionStartTime = null; // Guardará el timestamp de inicio de la pregunta actual
-  const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
+    let questions = [];
+    let studentUid = ''; 
+    let questionStartTime = null;
+    const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-  function generateUUID() {
-    return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-  }
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const userFromUrl = urlParams.get('user');
+      
+      studentUid = userFromUrl || 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      const fetchUrl = userFromUrl ? `${API_URL}?user=${userFromUrl}` : API_URL;
 
-  window.onload = function() {
-    studentUid = generateUUID();
-    
-    fetch(API_URL)
-      .then(res => res.text())
-      .then(text => {
-        const data = JSON.parse(text);
-        renderQuiz(data);
-        // Iniciamos el cronómetro para la primerísima pregunta
-        questionStartTime = Date.now(); 
-      })
-      .catch(err => {
-        document.getElementById('loading').innerText = "Error al conectar con el servidor.";
-        console.error(err);
-      });
-  };
+      fetch(fetchUrl)
+        .then(res => res.text())
+        .then(text => {
+          const payload = JSON.parse(text);
+          
+          if (userFromUrl) {
+            document.getElementById('points-value').innerText = payload.points;
+            document.getElementById('badge').style.display = 'block';
+          }
+          
+          renderQuiz(payload.questions);
+          questionStartTime = Date.now(); 
+        })
+        .catch(err => {
+          document.getElementById('loading').innerText = "Failed to connect to backend server.";
+          console.error(err);
+        });
+    };
 
   function renderQuiz(formQuestions) {
     questions = formQuestions;
     document.getElementById('loading').style.display = 'none';
     const container = document.getElementById('quiz-container');
+    const target = document.getElementById('steps-target');
     container.style.display = 'block';
 
     if (questions.length === 0) {
-      container.innerHTML = "<p>No se encontraron preguntas compatibles.</p>";
+      target.innerHTML = "<p>No supported questions found on this form.</p>";
       return;
     }
 
@@ -114,7 +122,7 @@
         });
         inputHtml += `</div>`;
       } else {
-        inputHtml = `<input type="text" id="input-${index}" placeholder="Write your answer here...">`;
+        inputHtml = `<input type="text" id="input-${index}" placeholder="Type your answer here...">`;
       }
 
       stepDiv.innerHTML = `
@@ -123,10 +131,10 @@
         ${inputHtml}
         <br>
         <button id="btn-${index}" onclick="submitStep(${index})">
-          ${index === questions.length - 1 ? 'Finish quiz' : 'Next Question →'}
+          ${index === questions.length - 1 ? 'Submit Quiz' : 'Next Question →'}
         </button>
       `;
-      container.appendChild(stepDiv);
+      target.appendChild(stepDiv);
     });
   }
 
@@ -145,9 +153,7 @@
       value = document.getElementById('input-' + index).value;
     }
 
-    // CALCULAMOS EL TIEMPO TRANSCURRIDO EN ESTA PREGUNTA:
     const timeTaken = Date.now() - questionStartTime;
-
     btn.innerText = "Loading...";
     btn.disabled = true;
 
@@ -159,28 +165,25 @@
         studentUid: studentUid,
         qIndex: index,
         value: value,
-        timeTaken: timeTaken // <-- Enviamos los milisegundos al backend
+        timeTaken: timeTaken
       })
     })
     .then(() => {
       document.getElementById('step-' + index).classList.remove('active');
       if (index < questions.length - 1) {
-        // REINICIAMOS EL CRONÓMETRO justo antes de mostrar la siguiente pregunta
         questionStartTime = Date.now(); 
-        
         document.getElementById('step-' + (index + 1)).classList.add('active');
       } else {
-        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture!</div>";
+        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Completed!</div><div class='quiz-success-p'>Your responses have been successfully logged in real time.</div>";
       }
     })
     .catch(err => {
-      btn.innerText = index === questions.length - 1 ? 'Finish quiz' : 'Next Question →';
+      btn.innerText = index === questions.length - 1 ? 'Submit Quiz' : 'Next Question →';
       btn.disabled = false;
-      alert("Error de conexión");
+      alert("Network connection error");
     });
   }
 </script>
-
 </body>
 </html>
 
