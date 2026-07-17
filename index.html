@@ -129,49 +129,52 @@
       });
     }
 
-    function submitStep(index) {
-      const q = questions[index];
-      const btn = document.getElementById('btn-' + index);
-      let value;
+		function submitStep(index) {
+			const q = questions[index];
+			const btn = document.getElementById('btn-' + index);
+			let value;
 
-      if (q.type === 'CHECKBOX') {
-        const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
-        value = Array.from(checkedBoxes).map(cb => cb.value);
-      } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
-        const selected = document.querySelector(`input[name="q-${index}"]:checked`);
-        value = selected ? selected.value : '';
-      } else {
-        value = document.getElementById('input-' + index).value;
-      }
+			if (q.type === 'CHECKBOX') {
+				const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
+				value = Array.from(checkedBoxes).map(cb => cb.value);
+			} else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
+				const selected = document.querySelector(`input[name="q-${index}"]:checked`);
+				value = selected ? selected.value : '';
+			} else {
+				value = document.getElementById('input-' + index).value;
+			}
 
-      btn.innerText = "Loading...";
-      btn.disabled = true;
+			btn.innerText = "Loading...";
+			btn.disabled = true;
 
-      fetch(API_URL, {
-        method: 'POST',
-        mode: 'no-cors', 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentUid: studentUid, // Enviamos el UID en lugar del número de fila
-          qIndex: index,
-          value: value
-        })
-      })
-      .then(() => {
-        // Al usar 'no-cors' la respuesta es opaca, avanzamos directamente
-        document.getElementById('step-' + index).classList.remove('active');
-        if (index < questions.length - 1) {
-          document.getElementById('step-' + (index + 1)).classList.add('active');
-        } else {
-          document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
-        }
-      })
-      .catch(err => {
-        btn.innerText = index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →';
-        btn.disabled = false;
-        alert("Error de conexión");
-      });
-    }
+			fetch(API_URL, {
+		method: 'POST',
+		mode: 'no-cors', 
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({
+		studentUid: studentUid,
+		qIndex: index,
+		value: value
+		})
+		})
+		.then(() => {
+				// Añadimos un pequeño delay de estabilidad antes de ocultar y permitir avanzar a la siguiente sección
+				setTimeout(() => {
+						document.getElementById('step-' + index).classList.remove('active');
+						if (index < questions.length - 1) {
+						document.getElementById('step-' + (index + 1)).classList.add('active');
+						} else {
+						document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
+						}
+						}, 600); // 600ms son suficientes para que el Lock del servidor organice las filas
+				})
+		.catch(err => {
+				btn.innerText = index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →';
+				btn.disabled = false;
+				alert("Error de conexión");
+				});
+		}
+
   </script>
 </body>
 </html>
