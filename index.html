@@ -6,16 +6,19 @@
   <title>Student Quiz Platform</title>
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; position: relative; }
-    #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; position: relative; }
+    #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; }
     #loading { text-align: center; font-size: 22px; color: #7f8c8d; font-style: italic; }
     
-    /* INTERACTIVE POINTS BADGE */
-    .points-badge { position: absolute; top: -20px; right: 20px; background: #38a169; color: white; padding: 8px 16px; border-radius: 20px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 10px rgba(56, 161, 105, 0.3); display: none; }
+    /* DISEÑO DE LA INFO DE LA SECCIÓN Y PUNTOS EN LÍNEA */
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+    .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin: 0; }
+    
+    /* INSIGNIA DE PUNTOS VISIBLE POR PREGUNTA */
+    .points-badge { background: #38a169; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(56, 161, 105, 0.2); white-space: nowrap; }
     
     .step { display: none; }
     .step.active { display: block; animation: fadeIn 0.4s ease forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; font-weight: 700; }
     .step p strong { font-size: 28px; line-height: 1.4; display: block; margin-bottom: 30px; }
     input[type="text"] { width: 100%; padding: 16px 20px; font-size: 20px; margin-top: 10px; box-sizing: border-box; border: 2px solid #e2e8f0; border-radius: 8px; outline: none; }
     input[type="text"]:focus { border-color: #6200ee; }
@@ -39,17 +42,17 @@
 <body>
 
   <div id="loading">Loading quiz template...</div>
-  <div id="quiz-container" style="display:none;">
-    <div id="badge" class="points-badge">Points: <span id="points-value">0</span></div>
-    <div id="steps-target"></div>
-  </div>
+  <div id="quiz-container" style="display:none;"></div>
 
   <script>
+    // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
 
     let questions = [];
     let studentUid = ''; 
     let questionStartTime = null;
+    let cachedPoints = 0; // Guardamos los puntos del alumno en memoria local
+    let isRegisteredUser = false; // Flag para saber si se pasó el parámetro ?user=
     const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
     window.onload = function() {
@@ -57,17 +60,15 @@
       const userFromUrl = urlParams.get('user');
       
       studentUid = userFromUrl || 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+      isRegisteredUser = userFromUrl ? true : false;
+      
       const fetchUrl = userFromUrl ? `${API_URL}?user=${userFromUrl}` : API_URL;
 
       fetch(fetchUrl)
         .then(res => res.text())
         .then(text => {
           const payload = JSON.parse(text);
-          
-          if (userFromUrl) {
-            document.getElementById('points-value').innerText = payload.points;
-            document.getElementById('badge').style.display = 'block';
-          }
+          cachedPoints = payload.points || 0; // Almacenamos la puntuación obtenida
           
           renderQuiz(payload.questions);
           questionStartTime = Date.now(); 
@@ -82,11 +83,10 @@
     questions = formQuestions;
     document.getElementById('loading').style.display = 'none';
     const container = document.getElementById('quiz-container');
-    const target = document.getElementById('steps-target');
     container.style.display = 'block';
 
     if (questions.length === 0) {
-      target.innerHTML = "<p>No supported questions found on this form.</p>";
+      container.innerHTML = "<p>No supported questions found on this form.</p>";
       return;
     }
 
@@ -125,8 +125,15 @@
         inputHtml = `<input type="text" id="input-${index}" placeholder="Type your answer here...">`;
       }
 
+      // Condicional para pintar la medalla de puntos en la cabecera si el usuario existe
+      let pointsBadgeHtml = isRegisteredUser ? `<div class="points-badge">Points: ${cachedPoints}</div>` : '';
+
+      // Inyección del Header con la sección y sus puntos lado a lado
       stepDiv.innerHTML = `
-        <div class="section-title">${q.sectionName}</div>
+        <div class="section-header">
+          <div class="section-title">${q.sectionName}</div>
+          ${pointsBadgeHtml}
+        </div>
         <p><strong>${q.title}</strong></p>
         ${inputHtml}
         <br>
@@ -134,7 +141,7 @@
           ${index === questions.length - 1 ? 'Submit Quiz' : 'Next Question →'}
         </button>
       `;
-      target.appendChild(stepDiv);
+      container.appendChild(stepDiv);
     });
   }
 
@@ -174,7 +181,10 @@
         questionStartTime = Date.now(); 
         document.getElementById('step-' + (index + 1)).classList.add('active');
       } else {
-        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Completed!</div><div class='quiz-success-p'>Your responses have been successfully logged in real time.</div>";
+        document.getElementById('quiz-container').innerHTML = `
+          <div class='quiz-success-title'>Thanks!</div>
+          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
+        `;
       }
     })
     .catch(err => {
