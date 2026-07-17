@@ -17,7 +17,7 @@
     .points-badge {
       background: #38a169;
       color: white;
-      padding: 0px 0; /* Eliminamos el padding lateral para evitar el desborde */
+      padding: 12px 24px;
       border-radius: 30px;
       font-weight: bold;
       font-size: 18px;
@@ -26,10 +26,12 @@
       display: none;
       animation: fadeIn 0.4s ease forwards;
       
-      /* SOLUCIÓN AL DESBORDE: Ancho completo controlado */
+      /* AJUSTE FIJO PARA EVITAR EL DESBORDE LATERAL */
       width: 100%;
+      max-width: 650px; /* Exactamente el mismo ancho máximo del contenedor del quiz */
       box-sizing: border-box;
-      text-align: center; /* Centra el texto "Points: 0" perfectamente en su nuevo ancho */
+      text-align: center;
+      margin: 0 auto; /* Lo mantiene perfectamente alineado al centro geométrico */
     }
     
     .step { display: none; }
@@ -208,22 +210,21 @@
       })
     })
     .then(() => {
-      // Ocultamos la pantalla actual
+      // Ocultamos la pantalla de la pregunta actual
       document.getElementById('step-' + index).classList.remove('active');
       
       if (index < questions.length - 1) {
-        // Incrementamos el índice de la pregunta global
+        questionStartTime = Date.now(); 
         currentQuestionIndex = index + 1;
-        
-        // Antes de mostrar la siguiente pregunta, refrescamos los puntos haciendo una llamada silenciosa GET
         fetchBackendData(); 
       } else {
-        if (document.getElementById('badge')) {
-          document.getElementById('badge').style.display = 'none';
-        }
+        // PASO FINAL: Mantenemos la medalla visible arriba y actualizamos la vista de éxito
+        // Recuperamos el valor actual que tiene la medalla en ese momento
+        const finalPoints = document.getElementById('points-value').innerText;
+        
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
-          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
+          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.<br><br><strong>Your final score: ${finalPoints} points</strong></div>
         `;
       }
     })
