@@ -43,22 +43,25 @@
 
   <script>
     // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT WEB APP
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'; 
+		const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'
 
     let serverRowId = null;
     let questions = [];
     const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-    window.onload = function() {
-      // Consumimos el método GET nativo para traer las preguntas
-      fetch(API_URL)
-        .then(res => res.json())
-        .then(renderQuiz)
-        .catch(err => {
-          document.getElementById('loading').innerText = "Error al conectar con el servidor.";
-          console.error(err);
-        });
-    };
+		window.onload = function() {
+			// Consumimos el método GET modificado
+			fetch(API_URL)
+				.then(res => res.text()) // Leemos la respuesta como texto plano primero
+				.then(text => {
+						const data = JSON.parse(text); // Parseamos manualmente a objeto JS
+						renderQuiz(data);
+						})
+			.catch(err => {
+					document.getElementById('loading').innerText = "Error al conectar con el servidor.";
+					console.error(err);
+					});
+		};
 
     function renderQuiz(formQuestions) {
       questions = formQuestions;
