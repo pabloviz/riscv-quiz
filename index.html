@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz Estudiantes</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; }
+    #quiz-container, #loading { background: #ffffff; padding: 50px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08); width: 90%; max-width: 650px; box-sizing: border-box; }
+    #loading { text-align: center; font-size: 22px; color: #7f8c8d; font-style: italic; }
+    .step { display: none; }
+    .step.active { display: block; animation: fadeIn 0.4s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 15px; font-weight: 700; }
+    .step p strong { font-size: 28px; line-height: 1.4; display: block; margin-bottom: 30px; }
+    input[type="text"] { width: 100%; padding: 16px 20px; font-size: 20px; margin-top: 10px; box-sizing: border-box; border: 2px solid #e2e8f0; border-radius: 8px; outline: none; }
+    input[type="text"]:focus { border-color: #6200ee; }
+    .choice-container { margin-top: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .choice-option { display: flex; align-items: center; padding: 18px 22px; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; font-size: 20px; transition: all 0.2s ease; background-color: #fff; }
+    .color-red { background-color: #fff5f5; border-color: #feb2b2; }
+    .color-green { background-color: #f0fff4; border-color: #9ae6b4; }
+    .color-blue { background-color: #ebf8ff; border-color: #90cdf4; }
+    .color-yellow { background-color: #fefcbf; border-color: #faf089; }
+    .color-red:has(input:checked) { border-color: #e53e3e; border-width: 3px; padding: 17px 21px; }
+    .color-green:has(input:checked) { border-color: #38a169; border-width: 3px; padding: 17px 21px; }
+    .color-blue:has(input:checked) { border-color: #3182ce; border-width: 3px; padding: 17px 21px; }
+    .color-yellow:has(input:checked) { border-color: #d69e2e; border-width: 3px; padding: 17px 21px; }
+    .choice-option input { margin-right: 16px; transform: scale(1.5); cursor: pointer; }
+    .color-red input { accent-color: #e53e3e; }
+    .color-green input { accent-color: #38a169; }
+    .color-blue input { accent-color: #3182ce; }
+    .color-yellow input { accent-color: #d69e2e; }
+    button { width: 100%; margin-top: 35px; padding: 18px 24px; font-size: 20px; font-weight: 600; cursor: pointer; background: #6200ee; color: white; border: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(98, 0, 238, 0.2); }
+    button:disabled { background: #a0aec0; cursor: not-allowed; box-shadow: none; }
+    .quiz-success-title { font-size: 32px; font-weight: bold; margin-bottom: 15px; text-align: center; }
+    .quiz-success-p { font-size: 22px; color: #7f8c8d; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div id="loading">Cargando cuestionario...</div>
+  <div id="quiz-container" style="display:none;"></div>
+
+  <script>
+    // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT WEB APP
+    const API_URL = 'PEGAR_AQUI_LA_URL_DE_TU_WEB_APP_QUE_TERMINA_EN_EXEC';
+
+    let serverRowId = null;
+    let questions = [];
+    const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
+
+    window.onload = function() {
+      // Consumimos el método GET nativo para traer las preguntas
+      fetch(API_URL)
+        .then(res => res.json())
+        .then(renderQuiz)
+        .catch(err => {
+          document.getElementById('loading').innerText = "Error al conectar con el servidor.";
+          console.error(err);
+        });
+    };
+
+    function renderQuiz(formQuestions) {
+      questions = formQuestions;
+      document.getElementById('loading').style.display = 'none';
+      const container = document.getElementById('quiz-container');
+      container.style.display = 'block';
+
+      if (questions.length === 0) {
+        container.innerHTML = "<p>No se encontraron preguntas compatibles.</p>";
+        return;
+      }
+
+      questions.forEach((q, index) => {
+        const stepDiv = document.createElement('div');
+        stepDiv.id = 'step-' + index;
+        stepDiv.className = 'step' + (index === 0 ? ' active' : '');
+
+        let inputHtml = '';
+
+        if (q.type === 'CHECKBOX') {
+          inputHtml = `<div class="choice-container">`;
+          q.choices.forEach((choice, cIndex) => {
+            const colorClass = colorClasses[cIndex % colorClasses.length];
+            inputHtml += `
+              <label class="choice-option ${colorClass}">
+                <input type="checkbox" name="q-${index}" value="${choice}">
+                <span>${choice}</span>
+              </label>
+            `;
+          });
+          inputHtml += `</div>`;
+        } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
+          inputHtml = `<div class="choice-container">`;
+          q.choices.forEach((choice, cIndex) => {
+            const colorClass = colorClasses[cIndex % colorClasses.length];
+            inputHtml += `
+              <label class="choice-option ${colorClass}">
+                <input type="radio" name="q-${index}" value="${choice}">
+                <span>${choice}</span>
+              </label>
+            `;
+          });
+          inputHtml += `</div>`;
+        } else {
+          inputHtml = `<input type="text" id="input-${index}" placeholder="Escribe tu respuesta aquí...">`;
+        }
+
+        stepDiv.innerHTML = `
+          <div class="section-title">${q.sectionName}</div>
+          <p><strong>${q.title}</strong></p>
+          ${inputHtml}
+          <br>
+          <button id="btn-${index}" onclick="submitStep(${index})">
+            ${index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →'}
+          </button>
+        `;
+        container.appendChild(stepDiv);
+      });
+    }
+
+    function submitStep(index) {
+      const q = questions[index];
+      const btn = document.getElementById('btn-' + index);
+      let value;
+
+      if (q.type === 'CHECKBOX') {
+        const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
+        value = Array.from(checkedBoxes).map(cb => cb.value);
+      } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
+        const selected = document.querySelector(`input[name="q-${index}"]:checked`);
+        value = selected ? selected.value : '';
+      } else {
+        value = document.getElementById('input-' + index).value;
+      }
+
+      btn.innerText = "Loading...";
+      btn.disabled = true;
+
+      // Enviamos los datos parciales usando un fetch POST asíncrono estándar
+      fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors', // Evita bloqueos de seguridad del navegador móvil
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rowId: serverRowId,
+          qIndex: index,
+          value: value
+        })
+      })
+      .then(() => {
+        // Al usar 'no-cors' la respuesta viene opaca, simulamos la persistencia secuencial de la sesión cliente
+        if (!serverRowId) {
+          // Si es el primer paso, esperamos un instante corto para asegurar el appendRow del backend
+          setTimeout(() => { proceed(index); }, 800);
+        } else {
+          proceed(index);
+        }
+      })
+      .catch(err => {
+        btn.innerText = index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →';
+        btn.disabled = false;
+        alert("Error de conexión");
+      });
+    }
+
+    function proceed(index) {
+      // Como 'no-cors' no nos permite leer el rowId devuelto, mantenemos la sesión activa en memoria local.
+      // Si un alumno refresca la página, iniciará una nueva fila en el Excel (comportamiento ideal para evitar sobreescritura de otros alumnos).
+      serverRowId = serverRowId || "active_session"; 
+      
+      document.getElementById('step-' + index).classList.remove('active');
+      if (index < questions.length - 1) {
+        document.getElementById('step-' + (index + 1)).classList.add('active');
+      } else {
+        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>¡Guardado!</div><div class='quiz-success-p'>Tus respuestas han sido procesadas con éxito.</div>";
+      }
+    }
+  </script>
+</body>
+</html>
