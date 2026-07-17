@@ -41,16 +41,20 @@
 </head>
 <body>
 
+ <div class="quiz-wrapper">
+	<div id="badge" class="points-badge" style="display: block;">Points: <span id="points-value">0</span></div>
   <div id="loading">Loading quiz template...</div>
   <div id="quiz-container" style="display:none;"></div>
+
+</div>
 
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
-
-  let questions = [];
+	 let questions = [];
   let studentUid = ''; 
   let questionStartTime = null;
+  let staticPoints = 0; // Variable inicializada en 0 para este paso
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
   function generateCleanID() {
@@ -58,14 +62,17 @@
   }
 
   window.onload = function() {
-    // Generamos un ID de sesión único que se mantiene constante a lo largo del cuestionario
     studentUid = generateCleanID();
 
-    // Petición GET estándar para recuperar la estructura de preguntas sin cruces de CORS
+    // Petición GET estable original para renderizar la plantilla sin tocar el servidor para los puntos
     fetch(API_URL)
       .then(res => res.text())
       .then(text => {
         const data = JSON.parse(text);
+        
+        // Forzamos que la medalla muestre el valor 0 de la variable estática
+        document.getElementById('points-value').innerText = staticPoints;
+        
         renderQuiz(data);
         questionStartTime = Date.now(); 
       })
@@ -172,6 +179,10 @@
         questionStartTime = Date.now(); 
         document.getElementById('step-' + (index + 1)).classList.add('active');
       } else {
+        // Al terminar, ocultamos la medalla para dejar limpia la pantalla de éxito
+        if (document.getElementById('badge')) {
+          document.getElementById('badge').style.display = 'none';
+        }
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
           <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
@@ -184,7 +195,6 @@
       alert("Network connection error");
     });
   }
-
 </script>
 </body>
 </html>
