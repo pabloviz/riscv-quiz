@@ -14,7 +14,23 @@
     .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin: 0; }
     
     /* INSIGNIA DE PUNTOS VISIBLE POR PREGUNTA */
-    .points-badge { background: #38a169; color: white; padding: 6px 14px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(56, 161, 105, 0.2); white-space: nowrap; }
+    .points-badge {
+      background: #38a169;
+      color: white;
+      padding: 12px 0; /* Eliminamos el padding lateral para evitar el desborde */
+      border-radius: 30px;
+      font-weight: bold;
+      font-size: 18px;
+      box-shadow: 0 4px 15px rgba(56, 161, 105, 0.25);
+      white-space: nowrap;
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+      
+      /* SOLUCIÓN AL DESBORDE: Ancho completo controlado */
+      width: 100%;
+      box-sizing: border-box;
+      text-align: center; /* Centra el texto "Points: 0" perfectamente en su nuevo ancho */
+    }
     
     .step { display: none; }
     .step.active { display: block; animation: fadeIn 0.4s ease forwards; }
