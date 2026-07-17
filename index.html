@@ -42,140 +42,145 @@
   <div id="loading">Loading quiz...</div>
   <div id="quiz-container" style="display:none;"></div>
 
-  <script>
-    // PEGA AQUÍ TU URL DE GOOGLE APPS SCRIPT WEB APP
-		const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'
+<script>
+	const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec'
 
-    let questions = [];
-    let studentUid = ''; 
-    const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
+  let questions = [];
+  let studentUid = ''; 
+  let questionStartTime = null; // Guardará el timestamp de inicio de la pregunta actual
+  const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-    // Generador básico de IDs únicos para la sesión del alumno
-    function generateUUID() {
-      return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  function generateUUID() {
+    return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
+
+  window.onload = function() {
+    studentUid = generateUUID();
+    
+    fetch(API_URL)
+      .then(res => res.text())
+      .then(text => {
+        const data = JSON.parse(text);
+        renderQuiz(data);
+        // Iniciamos el cronómetro para la primerísima pregunta
+        questionStartTime = Date.now(); 
+      })
+      .catch(err => {
+        document.getElementById('loading').innerText = "Error al conectar con el servidor.";
+        console.error(err);
+      });
+  };
+
+  function renderQuiz(formQuestions) {
+    questions = formQuestions;
+    document.getElementById('loading').style.display = 'none';
+    const container = document.getElementById('quiz-container');
+    container.style.display = 'block';
+
+    if (questions.length === 0) {
+      container.innerHTML = "<p>No se encontraron preguntas compatibles.</p>";
+      return;
     }
 
-    window.onload = function() {
-      studentUid = generateUUID(); // Inicializamos el ID único del alumno al abrir la web
-      
-      fetch(API_URL)
-        .then(res => res.text())
-        .then(text => {
-          const data = JSON.parse(text);
-          renderQuiz(data);
-        })
-        .catch(err => {
-          document.getElementById('loading').innerText = "Error al conectar con el servidor.";
-          console.error(err);
+    questions.forEach((q, index) => {
+      const stepDiv = document.createElement('div');
+      stepDiv.id = 'step-' + index;
+      stepDiv.className = 'step' + (index === 0 ? ' active' : '');
+
+      let inputHtml = '';
+
+      if (q.type === 'CHECKBOX') {
+        inputHtml = `<div class="choice-container">`;
+        q.choices.forEach((choice, cIndex) => {
+          const colorClass = colorClasses[cIndex % colorClasses.length];
+          inputHtml += `
+            <label class="choice-option ${colorClass}">
+              <input type="checkbox" name="q-${index}" value="${choice}">
+              <span>${choice}</span>
+            </label>
+          `;
         });
-    };
-
-    function renderQuiz(formQuestions) {
-      questions = formQuestions;
-      document.getElementById('loading').style.display = 'none';
-      const container = document.getElementById('quiz-container');
-      container.style.display = 'block';
-
-      if (questions.length === 0) {
-        container.innerHTML = "<p>No se encontraron preguntas compatibles.</p>";
-        return;
+        inputHtml += `</div>`;
+      } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
+        inputHtml = `<div class="choice-container">`;
+        q.choices.forEach((choice, cIndex) => {
+          const colorClass = colorClasses[cIndex % colorClasses.length];
+          inputHtml += `
+            <label class="choice-option ${colorClass}">
+              <input type="radio" name="q-${index}" value="${choice}">
+              <span>${choice}</span>
+            </label>
+          `;
+        });
+        inputHtml += `</div>`;
+      } else {
+        inputHtml = `<input type="text" id="input-${index}" placeholder="Write your answer here...">`;
       }
 
-      questions.forEach((q, index) => {
-        const stepDiv = document.createElement('div');
-        stepDiv.id = 'step-' + index;
-        stepDiv.className = 'step' + (index === 0 ? ' active' : '');
+      stepDiv.innerHTML = `
+        <div class="section-title">${q.sectionName}</div>
+        <p><strong>${q.title}</strong></p>
+        ${inputHtml}
+        <br>
+        <button id="btn-${index}" onclick="submitStep(${index})">
+          ${index === questions.length - 1 ? 'Finish quiz' : 'Next Question →'}
+        </button>
+      `;
+      container.appendChild(stepDiv);
+    });
+  }
 
-        let inputHtml = '';
+  function submitStep(index) {
+    const q = questions[index];
+    const btn = document.getElementById('btn-' + index);
+    let value;
 
-        if (q.type === 'CHECKBOX') {
-          inputHtml = `<div class="choice-container">`;
-          q.choices.forEach((choice, cIndex) => {
-            const colorClass = colorClasses[cIndex % colorClasses.length];
-            inputHtml += `
-              <label class="choice-option ${colorClass}">
-                <input type="checkbox" name="q-${index}" value="${choice}">
-                <span>${choice}</span>
-              </label>
-            `;
-          });
-          inputHtml += `</div>`;
-        } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
-          inputHtml = `<div class="choice-container">`;
-          q.choices.forEach((choice, cIndex) => {
-            const colorClass = colorClasses[cIndex % colorClasses.length];
-            inputHtml += `
-              <label class="choice-option ${colorClass}">
-                <input type="radio" name="q-${index}" value="${choice}">
-                <span>${choice}</span>
-              </label>
-            `;
-          });
-          inputHtml += `</div>`;
-        } else {
-          inputHtml = `<input type="text" id="input-${index}" placeholder="Write your answer here...">`;
-        }
-
-        stepDiv.innerHTML = `
-          <div class="section-title">${q.sectionName}</div>
-          <p><strong>${q.title}</strong></p>
-          ${inputHtml}
-          <br>
-          <button id="btn-${index}" onclick="submitStep(${index})">
-            ${index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →'}
-          </button>
-        `;
-        container.appendChild(stepDiv);
-      });
+    if (q.type === 'CHECKBOX') {
+      const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
+      value = Array.from(checkedBoxes).map(cb => cb.value);
+    } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
+      const selected = document.querySelector(`input[name="q-${index}"]:checked`);
+      value = selected ? selected.value : '';
+    } else {
+      value = document.getElementById('input-' + index).value;
     }
 
-		function submitStep(index) {
-			const q = questions[index];
-			const btn = document.getElementById('btn-' + index);
-			let value;
+    // CALCULAMOS EL TIEMPO TRANSCURRIDO EN ESTA PREGUNTA:
+    const timeTaken = Date.now() - questionStartTime;
 
-			if (q.type === 'CHECKBOX') {
-				const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
-				value = Array.from(checkedBoxes).map(cb => cb.value);
-			} else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
-				const selected = document.querySelector(`input[name="q-${index}"]:checked`);
-				value = selected ? selected.value : '';
-			} else {
-				value = document.getElementById('input-' + index).value;
-			}
+    btn.innerText = "Loading...";
+    btn.disabled = true;
 
-			btn.innerText = "Loading...";
-			btn.disabled = true;
+    fetch(API_URL, {
+      method: 'POST',
+      mode: 'no-cors', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        studentUid: studentUid,
+        qIndex: index,
+        value: value,
+        timeTaken: timeTaken // <-- Enviamos los milisegundos al backend
+      })
+    })
+    .then(() => {
+      document.getElementById('step-' + index).classList.remove('active');
+      if (index < questions.length - 1) {
+        // REINICIAMOS EL CRONÓMETRO justo antes de mostrar la siguiente pregunta
+        questionStartTime = Date.now(); 
+        
+        document.getElementById('step-' + (index + 1)).classList.add('active');
+      } else {
+        document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture!</div>";
+      }
+    })
+    .catch(err => {
+      btn.innerText = index === questions.length - 1 ? 'Finish quiz' : 'Next Question →';
+      btn.disabled = false;
+      alert("Error de conexión");
+    });
+  }
+</script>
 
-			fetch(API_URL, {
-		method: 'POST',
-		mode: 'no-cors', 
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-		studentUid: studentUid,
-		qIndex: index,
-		value: value
-		})
-		})
-		.then(() => {
-				// Añadimos un pequeño delay de estabilidad antes de ocultar y permitir avanzar a la siguiente sección
-				setTimeout(() => {
-						document.getElementById('step-' + index).classList.remove('active');
-						if (index < questions.length - 1) {
-						document.getElementById('step-' + (index + 1)).classList.add('active');
-						} else {
-						document.getElementById('quiz-container').innerHTML = "<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>Hope you enjoyed the lecture!.</div>";
-						}
-						}, 600); // 600ms son suficientes para que el Lock del servidor organice las filas
-				})
-		.catch(err => {
-				btn.innerText = index === questions.length - 1 ? 'Enviar Cuestionario' : 'Next Question →';
-				btn.disabled = false;
-				alert("Error de conexión");
-				});
-		}
-
-  </script>
 </body>
 </html>
 
