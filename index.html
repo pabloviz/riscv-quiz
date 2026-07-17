@@ -78,17 +78,17 @@
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
-  let questions = [];
+let questions = [];
   let studentUid = ''; 
   let questionStartTime = null;
-  let currentQuestionIndex = 0; // Seguimiento del índice actual de la pantalla
+  let currentQuestionIndex = 0; // Seguimiento estricto del índice de la pregunta actual
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
   function generateCleanID() {
     return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
   }
 
-  // FUNCIÓN DE RECEPCIÓN JSONP CENTRALIZADA
+  // FUNCIÓN DE RECEPCIÓN JSONP CENTRALIZADA (Maneja carga inicial y transiciones)
   function handleQuizData(payload) {
     const badgeElement = document.getElementById('badge');
     
@@ -106,16 +106,21 @@
       badgeElement.style.display = 'block';
     }
     
-    // 2. Control de renderizado inicial
+    // 2. Control de renderizado inicial (Solo se ejecuta la primera vez que abre la página)
     if (questions.length === 0) {
       questions = payload.questions;
       renderQuizStructure();
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('step-0').classList.add('active');
-      questionStartTime = Date.now();
     }
     
-    // 3. NUEVO: Si el alumno ya está en la pantalla final, reactivamos el botón de refresco
+    // 3. APAGAMOS EL LOADING Y LEVANTAMOS EL CONTENEDOR EN CADA LLAMADA
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('quiz-container').style.display = 'block';
+    
+    // 4. Forzamos la activación visual de la pregunta correspondiente
+    document.getElementById('step-' + currentQuestionIndex).classList.add('active');
+    questionStartTime = Date.now(); // Arrancamos el cronómetro de la pregunta actual
+    
+    // 5. Si el alumno está en la pantalla final, reactivamos el botón de refresco
     const refreshBtn = document.getElementById('refresh-score-btn');
     if (refreshBtn) {
       refreshBtn.innerText = "Update Score";
@@ -123,41 +128,28 @@
     }
   }
 
-
-
-
-  // Función interna para consultar al backend vía inyección dinámica de Script (Evita CORS)
+  // Inyección dinámica de Script para saltar las restricciones de CORS
   function fetchBackendData() {
     const oldScript = document.getElementById('jsonp-runner');
     if (oldScript) oldScript.remove();
 
     const script = document.createElement('script');
     script.id = 'jsonp-runner';
-    
-    // MODIFICADO: Inyectamos de forma segura la variable global studentUid en la petición
     script.src = `${API_URL}?user=${studentUid}&callback=handleQuizData&t=${Date.now()}`;
-    
     script.onerror = function() {
       document.getElementById('loading').innerText = "Failed to connect to backend server.";
     };
     document.body.appendChild(script);
   }
 
-  // Nueva función para lanzar la petición de actualización desde el botón final
-  function triggerScoreRefresh() {
-    const refreshBtn = document.getElementById('refresh-score-btn');
-    if (refreshBtn) {
-      refreshBtn.innerText = "Updating...";
-      refreshBtn.disabled = true;
-    }
-    // Lanza la llamada silenciosa JSONP que actualizará el badge y reactivará el botón al terminar
-    fetchBackendData(); 
-  }
-
-
-
   window.onload = function() {
-    studentUid = generateCleanID();
+    let localUser = localStorage.getItem('quiz_student_session_id');
+    if (!localUser) {
+      localUser = generateCleanID();
+      localStorage.setItem('quiz_student_session_id', localUser);
+    }
+    studentUid = localUser;
+    
     fetchBackendData(); // Ejecuta la carga inicial de datos
   };
 
@@ -176,29 +168,16 @@
       stepDiv.className = 'step'; // Inicialmente ocultos, handleQuizData activa el correcto
 
       let inputHtml = '';
-
       if (q.type === 'CHECKBOX') {
         inputHtml = `<div class="choice-container">`;
         q.choices.forEach((choice, cIndex) => {
-          const colorClass = colorClasses[cIndex % colorClasses.length];
-          inputHtml += `
-            <label class="choice-option ${colorClass}">
-              <input type="checkbox" name="q-${index}" value="${choice}">
-              <span>${choice}</span>
-            </label>
-          `;
+          inputHtml += `<label class="choice-option ${colorClasses[cIndex % colorClasses.length]}"><input type="checkbox" name="q-${index}" value="${choice}"><span>${choice}</span></label>`;
         });
         inputHtml += `</div>`;
       } else if (q.type === 'MULTIPLE_CHOICE' || q.type === 'LIST') {
         inputHtml = `<div class="choice-container">`;
         q.choices.forEach((choice, cIndex) => {
-          const colorClass = colorClasses[cIndex % colorClasses.length];
-          inputHtml += `
-            <label class="choice-option ${colorClass}">
-              <input type="radio" name="q-${index}" value="${choice}">
-              <span>${choice}</span>
-            </label>
-          `;
+          inputHtml += `<label class="choice-option ${colorClasses[cIndex % colorClasses.length]}"><input type="radio" name="q-${index}" value="${choice}"><span>${choice}</span></label>`;
         });
         inputHtml += `</div>`;
       } else {
@@ -206,9 +185,7 @@
       }
 
       stepDiv.innerHTML = `
-        <div class="section-header">
-          <div class="section-title">${q.sectionName}</div>
-        </div>
+        <div class="section-header"><div class="section-title">${q.sectionName}</div></div>
         <p><strong>${q.title}</strong></p>
         ${inputHtml}
         <br>
@@ -239,6 +216,20 @@
     btn.innerText = "Loading...";
     btn.disabled = true;
 
+    // Desactivamos la pregunta actual en el cliente de inmediato
+    document.getElementById('step-' + index).classList.remove('active');
+
+    if (index < questions.length - 1) {
+      // TRANSICIÓN DE CARGA LIMPIA: Ocultamos el recuadro blanco y encendemos el texto "Loading..."
+      document.getElementById('quiz-container').style.display = 'none';
+      const loadingElement = document.getElementById('loading');
+      loadingElement.innerText = "Loading next question...";
+      loadingElement.style.display = 'block';
+      
+      currentQuestionIndex = index + 1; // Avanzamos el índice global para la respuesta JSONP
+    }
+
+    // Escritura asíncrona ciega ultraestable (POST no-cors)
     fetch(API_URL, {
       method: 'POST',
       mode: 'no-cors', 
@@ -251,26 +242,15 @@
       })
     })
     .then(() => {
-      // 1. Ocultamos la pantalla de la pregunta actual de forma inmediata
-      document.getElementById('step-' + index).classList.remove('active');
-      
       if (index < questions.length - 1) {
-        // 2. SOLUCIÓN AL PARPADEO: Ocultamos el cuadro del quiz y volvemos a encender el texto de "Loading..."
-        document.getElementById('quiz-container').style.display = 'none';
-        
-        const loadingElement = document.getElementById('loading');
-        loadingElement.innerText = "Loading next question..."; // Texto descriptivo para el estudiante
-        loadingElement.style.display = 'block';
-        
-        // 3. Incrementamos el índice de la pregunta y disparamos el cronómetro
-        questionStartTime = Date.now(); 
-        currentQuestionIndex = index + 1;
-        
-        // Lanzamos la petición JSONP. Al regresar, la función handleQuizData() 
-        // se encargará de apagar este "Loading..." y encender el quiz-container automáticamente.
+        // Ejecuta la lectura síncrona de los puntos. Al terminar levantará la nueva pregunta
         fetchBackendData(); 
       } else {
-        // Pantalla de agradecimiento final (se muestra de inmediato)
+        // Si es la última pregunta, inyectamos la vista de éxito final con el botón de refresco
+        if (document.getElementById('badge')) {
+          document.getElementById('badge').style.display = 'none';
+        }
+        document.getElementById('quiz-container').style.display = 'block';
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
           <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
@@ -279,12 +259,20 @@
         `;
       }
     })
-
     .catch(err => {
       btn.innerText = index === questions.length - 1 ? 'Submit Quiz' : 'Next Question →';
       btn.disabled = false;
       alert("Network connection error");
     });
+  }
+
+  function triggerScoreRefresh() {
+    const refreshBtn = document.getElementById('refresh-score-btn');
+    if (refreshBtn) {
+      refreshBtn.innerText = "Updating...";
+      refreshBtn.disabled = true;
+    }
+    fetchBackendData(); 
   }
 </script>
 </body>
