@@ -14,10 +14,20 @@
     .section-title { color: #6200ee; font-size: 16px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin: 0; }
     
     /* INSIGNIA DE PUNTOS VISIBLE POR PREGUNTA */
-		.points-badge {
+    .quiz-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 90%;
+      max-width: 650px; /* El contenedor padre ahora limita el ancho estricto */
+      gap: 15px;
+      box-sizing: border-box;
+    }
+
+    .points-badge {
       background: #38a169;
       color: white;
-      padding: 14px 24px;
+      padding: 14px 0; /* Padding lateral a 0 para asegurar alineación perfecta al borde */
       border-radius: 30px;
       font-weight: bold;
       font-size: 18px;
@@ -26,12 +36,12 @@
       display: none;
       animation: fadeIn 0.4s ease forwards;
       
-      /* AJUSTE FIJO DEFINITIVO CONTRA EL DESBORDE */
-      width: auto;
-      align-self: stretch; /* Se estira simulando exactamente las dimensiones del cuadro de abajo */
+      /* AJUSTE FIJO GEOMÉTRICO CONTRA EL DESBORDE */
+      width: 100%; 
       box-sizing: border-box;
       text-align: center;
     }
+
     
     .step { display: none; }
     .step.active { display: block; animation: fadeIn 0.4s ease forwards; }
@@ -84,15 +94,15 @@
     
     if (payload.points === "No points yet") {
       badgeElement.innerHTML = "Points: No points yet";
-      badgeElement.style.background = "#e53e3e"; // Rojo si no hay registro
+      badgeElement.style.background = "#e53e3e"; 
       badgeElement.style.display = 'block';
     } else {
-      // FORMATO SOLICITADO: Points: X (#Y position)
-      // Si la posición calculada es válida, agregamos el sufijo del ranking
-      const positionSuffix = payload.position !== "" ? ` (#${payload.position} position)` : "";
+      // Si la posición calculada es válida, agregamos el sufijo solicitado
+      const hasPosition = payload.position !== undefined && payload.position !== "";
+      const positionSuffix = hasPosition ? ` (#${payload.position} position)` : "";
       
       badgeElement.innerHTML = `Points: <span id="points-value">${payload.points}</span>${positionSuffix}`;
-      badgeElement.style.background = "#38a169"; // Verde si existe
+      badgeElement.style.background = "#38a169"; 
       badgeElement.style.display = 'block';
     }
     
@@ -105,6 +115,7 @@
     document.getElementById('step-' + currentQuestionIndex).classList.add('active');
     questionStartTime = Date.now();
   }
+
 
 
   // Función interna para consultar al backend vía inyección dinámica de Script (Evita CORS)
