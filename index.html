@@ -47,37 +47,50 @@
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
+  let questions = [];
+  let studentUid = ''; 
+  let questionStartTime = null;
+  let cachedPoints = 0; 
+  const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-    let questions = [];
-    let studentUid = ''; 
-    let questionStartTime = null;
-    let cachedPoints = 0; // Guardamos los puntos del alumno en memoria local
-    let isRegisteredUser = false; // Flag para saber si se pasó el parámetro ?user=
-    const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
+  function generateCleanID() {
+    return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  }
 
-    window.onload = function() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const userFromUrl = urlParams.get('user');
-      
-      studentUid = userFromUrl || 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-      isRegisteredUser = userFromUrl ? true : false;
-      
-      const fetchUrl = userFromUrl ? `${API_URL}?user=${userFromUrl}` : API_URL;
+  window.onload = function() {
+    // 1. Recuperamos el ID del almacenamiento local del dispositivo
+    let localUser = localStorage.getItem('quiz_student_session_id');
+    
+    if (!localUser) {
+      localUser = generateCleanID();
+      localStorage.setItem('quiz_student_session_id', localUser);
+    }
+    
+    studentUid = localUser;
+    
+    // 2. Hacemos la consulta directamente usando el studentUid nativo del alumno
+    const fetchUrl = `${API_URL}?user=${studentUid}`;
 
-      fetch(fetchUrl)
-        .then(res => res.text())
-        .then(text => {
-          const payload = JSON.parse(text);
-          cachedPoints = payload.points || 0; // Almacenamos la puntuación obtenida
-          
-          renderQuiz(payload.questions);
-          questionStartTime = Date.now(); 
-        })
-        .catch(err => {
-          document.getElementById('loading').innerText = "Failed to connect to backend server.";
-          console.error(err);
-        });
-    };
+    fetch(fetchUrl)
+      .then(res => res.text())
+      .then(text => {
+        const payload = JSON.parse(text);
+        cachedPoints = payload.points || 0; 
+        
+        // 3. Si el alumno ya tiene puntos en la pestaña "Processed", mostramos la medalla encima
+        if (cachedPoints > 0) {
+          document.getElementById('points-value').innerText = cachedPoints;
+          document.getElementById('badge').style.display = 'block';
+        }
+        
+        renderQuiz(payload.questions);
+        questionStartTime = Date.now(); 
+      })
+      .catch(err => {
+        document.getElementById('loading').innerText = "Failed to connect to backend server.";
+        console.error(err);
+      });
+  };
 
   function renderQuiz(formQuestions) {
     questions = formQuestions;
@@ -125,14 +138,9 @@
         inputHtml = `<input type="text" id="input-${index}" placeholder="Type your answer here...">`;
       }
 
-      // Condicional para pintar la medalla de puntos en la cabecera si el usuario existe
-      let pointsBadgeHtml = isRegisteredUser ? `<div class="points-badge">Points: ${cachedPoints}</div>` : '';
-
-      // Inyección del Header con la sección y sus puntos lado a lado
       stepDiv.innerHTML = `
         <div class="section-header">
           <div class="section-title">${q.sectionName}</div>
-          ${pointsBadgeHtml}
         </div>
         <p><strong>${q.title}</strong></p>
         ${inputHtml}
@@ -181,6 +189,9 @@
         questionStartTime = Date.now(); 
         document.getElementById('step-' + (index + 1)).classList.add('active');
       } else {
+        if (document.getElementById('badge')) {
+          document.getElementById('badge').style.display = 'none';
+        }
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
           <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
@@ -193,6 +204,7 @@
       alert("Network connection error");
     });
   }
+
 </script>
 </body>
 </html>
