@@ -251,13 +251,26 @@
       })
     })
     .then(() => {
+      // 1. Ocultamos la pantalla de la pregunta actual de forma inmediata
       document.getElementById('step-' + index).classList.remove('active');
+      
       if (index < questions.length - 1) {
+        // 2. SOLUCIÓN AL PARPADEO: Ocultamos el cuadro del quiz y volvemos a encender el texto de "Loading..."
+        document.getElementById('quiz-container').style.display = 'none';
+        
+        const loadingElement = document.getElementById('loading');
+        loadingElement.innerText = "Loading next question..."; // Texto descriptivo para el estudiante
+        loadingElement.style.display = 'block';
+        
+        // 3. Incrementamos el índice de la pregunta y disparamos el cronómetro
         questionStartTime = Date.now(); 
         currentQuestionIndex = index + 1;
+        
+        // Lanzamos la petición JSONP. Al regresar, la función handleQuizData() 
+        // se encargará de apagar este "Loading..." y encender el quiz-container automáticamente.
         fetchBackendData(); 
       } else {
-        // PANTALLA FINAL MODIFICADA: Mantenemos el badge visible e inyectamos el botón de refresco
+        // Pantalla de agradecimiento final (se muestra de inmediato)
         document.getElementById('quiz-container').innerHTML = `
           <div class='quiz-success-title'>Thanks!</div>
           <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
@@ -266,6 +279,7 @@
         `;
       }
     })
+
     .catch(err => {
       btn.innerText = index === questions.length - 1 ? 'Submit Quiz' : 'Next Question →';
       btn.disabled = false;
