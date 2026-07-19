@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "sectionName": "Feedback",
+    "title": "Write down your primary project goal:",
+    "type": "text",
+    "choices": [],
+    "correctAnswer": ""
+  },
+  {
+    "id": 2,
+    "sectionName": "Lecture Introduction",
+    "title": "What is the primary language used in Google Apps Script?",
+    "type": "radio",
+    "choices": ["Python", "JavaScript", "PHP", "Java"],
+    "correctAnswer": "JavaScript"
+  },
+  {
+    "id": 3,
+    "sectionName": "Data Formats",
+    "title": "Select all data types supported natively by JSON:",
+    "type": "checkbox",
+    "choices": ["String", "Number", "Function", "Boolean"],
+    "correctAnswer": ["String", "Number", "Boolean"]
+  }
+]
+
