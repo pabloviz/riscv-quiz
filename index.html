@@ -100,34 +100,29 @@
     const badge = document.getElementById('badge');
     const activeScript = document.getElementById('jsonp-runner');
     
-    // FIREWALL ASÍNCRONO: Validamos si la respuesta viene de una llamada vieja rezagada
+    // Firewall asíncrono contra peticiones retrasadas del pasado
     if (activeScript) {
       const scriptToken = Number(activeScript.getAttribute('data-token'));
-      if (scriptToken !== currentGetSessionToken) {
-        console.log("Petición fantasma del pasado interceptada y destruida con éxito.");
-        return; // Abortamos la ejecución de forma silenciosa. El badge se queda en gris mate.
-      }
+      if (scriptToken !== currentGetSessionToken) return; 
     }
+
     const serverCurrent = Number(payload.currentQuestion);
     const serverActive = Number(payload.activeQuestion);
     totalQuestionsCount = Number(payload.totalQuestions) || 99;
 
-    // 1. MÁQUINA DE ESTADOS VISUAL DEL BADGE (REQUERIMIENTO GRIS EN ESPERA)
+    // 1. Renderizado y formateo de la medalla de puntos
     let pointsText = "";
-    let badgeColor = "#38a169"; // Verde por defecto
-    let shouldShowBadge = true;
+    let badgeColor = "#38a169"; 
 
     if (payload.points === "No points yet") {
       if (isWaitingState) {
-        // REQUERIMIENTO: Mientras esté esperando en el limbo y el primer GET (o sucesivos) no traiga puntos, se queda en gris
         pointsText = "Computing points...";
-        badgeColor = "#7f8c8d"; // Gris neutro
+        badgeColor = "#7f8c8d"; 
       } else {
         pointsText = "Points: No points yet";
-        badgeColor = "#e53e3e"; // Rojo si es un error real en preguntas activas
+        badgeColor = "#e53e3e"; 
       }
     } else {
-      // Si el servidor ya devolvió puntos válidos, conmutamos inmediatamente a verde con la nota real
       pointsText = `Points: <span id="points-value">${parseFloat(Number(payload.points).toFixed(2))}</span>${payload.position ? ` (#${payload.position} position)` : ""}`;
       badgeColor = "#38a169";
     }
@@ -135,12 +130,17 @@
     badge.innerHTML = pointsText;
     badge.style.background = badgeColor;
 
-    // El badge se oculta estrictamente solo si el alumno está respondiendo la Q0 (Nombre) de forma activa
-    if (currentQuestionIndex === 0 && !isWaitingState) {
-      badge.style.display = 'none';
-    } else {
-      badge.style.display = 'block'; // Visible en salas de espera, preguntas 1+ y gracias
+    // 2. DETECCIÓN Y BLINDAJE DE PANTALLA FINAL
+    // Si el alumno ya llegó al final (existe el párrafo de éxito), congelamos su interfaz.
+    // El badge verde se queda encendido de forma perpetua actualizando su ranking cada 5 segundos.
+    const successParagraph = document.querySelector('.quiz-success-p');
+    if (successParagraph) {
+      badge.style.display = 'block';
+      return; // Salimos de la función bloqueando cualquier intento de expulsión o sala de espera
     }
+
+    // Región de visibilidad ordinaria durante el test
+    badge.style.display = (currentQuestionIndex === 0 && !isWaitingState) ? 'none' : 'block';
 
     // ADUANA INICIAL PARA ALUMNOS TARDÍOS
     if (isFirstPageLoad) {
@@ -166,18 +166,16 @@
 
     if (serverCurrent >= 0) isQuizInitialized = true; 
 
-    // ESTADO 2: INTERRUPCIÓN EN CALIENTE (KICK OUT DESDE PROFESOR)
+    // ESTADO 2: INTERRUPCIÓN EN CALIENTE (KICK OUT)
     if (!isWaitingState && currentQuestionIndex > 0 && serverActive > currentQuestionIndex) {
       isWaitingState = true;
       const currentStep = document.getElementById('step-' + currentQuestionIndex);
       if (currentStep) currentStep.remove(); 
       
       document.getElementById('quiz-container').style.display = 'none';
-      
-      // Al ser expulsado en caliente, forzamos el badge a gris de espera inmediatamente
       badge.innerHTML = "Computing points...";
       badge.style.background = "#7f8c8d";
-      badge.style.display = 'block';
+      badge.style.display = 'block'; 
       
       document.getElementById('loading').innerText = "Waiting for next question...";
       document.getElementById('loading').style.display = 'block';
