@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Student Quiz Platform</title>
   <style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; color: #2c3e50; position: relative; }
@@ -211,16 +214,12 @@
     const old = document.getElementById('jsonp-runner');
     if (old) old.remove();
 
-    // Guardamos el token que está activo en el momento exacto de disparar la red
     const tokenAtTriggerTime = currentGetSessionToken;
-
     const script = document.createElement('script');
     script.id = 'jsonp-runner';
-    // Le pasamos el token en la URL para que regrese en la respuesta si fuera necesario, 
-    // pero al ser una clausura de JavaScript, handleLeaderboardData lo evaluará de forma nativa.
-    script.src = `${API_URL}?user=${studentUid}&callback=handleLeaderboardData&t=${Date.now()}`;
     
-    // Vinculamos de forma estricta el token al contexto de ejecucion de esta llamada específica
+    // El parámetro &t= asegura que el navegador del móvil no cachee el GET de Google
+    script.src = `${API_URL}?user=${studentUid}&callback=handleLeaderboardData&t=${Date.now()}`;
     script.setAttribute('data-token', tokenAtTriggerTime);
     
     document.body.appendChild(script);
