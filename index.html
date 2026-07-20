@@ -210,23 +210,24 @@
   }
 
 
+  // NUEVO CANAL DE COMUNICACIÓN COMPATIBLE CON MÓVILES ORDINARIOS
   function fetchPointsFromLeaderboard() {
-    const old = document.getElementById('jsonp-runner');
-    if (old) old.remove();
-
-    // Guardamos el token que está activo en el momento exacto de disparar la red
     const tokenAtTriggerTime = currentGetSessionToken;
 
-    const script = document.createElement('script');
-    script.id = 'jsonp-runner';
-    // Le pasamos el token en la URL para que regrese en la respuesta si fuera necesario, 
-    // pero al ser una clausura de JavaScript, handleLeaderboardData lo evaluará de forma nativa.
-    script.src = `${API_URL}?user=${studentUid}&callback=handleLeaderboardData&t=${Date.now()}`;
-    
-    // Vinculamos de forma estricta el token al contexto de ejecucion de esta llamada específica
-    script.setAttribute('data-token', tokenAtTriggerTime);
-    
-    document.body.appendChild(script);
+    // Hacemos una consulta limpia con fetch de texto plano pasándole el ID en la URL
+    fetch(`${API_URL}?user=${studentUid}&t=${Date.now()}`)
+      .then(res => res.text()) // Leemos la respuesta de Google como texto crudo libre de bloqueos
+      .then(textString => {
+        // Firewall asíncrono: si el token de sesión cambió, destruimos este hilo rezagado
+        if (tokenAtTriggerTime !== currentGetSessionToken) return;
+
+        // Parseamos el string plano a un objeto JSON real directamente en la memoria
+        const payload = JSON.parse(textString); 
+        
+        // Invocamos a tu función handleLeaderboardData ordinaria con los datos frescos
+        handleLeaderboardData(payload);
+      })
+      .catch(err => console.error("Error físico de red en el móvil:", err));
   }
 
   window.onload = function() {
