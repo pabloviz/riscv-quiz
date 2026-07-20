@@ -41,6 +41,15 @@
       box-sizing: border-box;
       text-align: center;
     }
+    .question-image {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin: 15px 0 20px 0; /* Espaciado equilibrado entre el título y las opciones */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* Sombra suave para que resalte */
+      display: block;
+    }
 
     
     .step { display: none; }
@@ -69,8 +78,9 @@
 <body>
 
  <div class="quiz-wrapper">
-	<div id="badge" class="points-badge" style="display: block;">Points: <span id="points-value">0</span></div>
-  <div id="loading">Loading quiz template...</div>
+	<div id="badge" class="points-badge" style="display: none;">Points: <span id="points-value">0</span></div>
+
+  <div id="loading">Waiting for quiz to start...</div>
   <div id="quiz-container" style="display:none;"></div>
 
 </div>
@@ -78,224 +88,255 @@
   <script>
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
-let questions = [];
-  let studentUid = ''; 
-  let questionStartTime = null;
-  let currentQuestionIndex = 0;
-  let pollingIntervalId = null; // Controla el bucle intermitente de 5s en background
+  let studentUid = '', questionStartTime = null, totalQuestionsCount = 99;
+  let currentQuestionIndex = 0, targetQuestionIndex = 0, pollingIntervalId = null, isWaitingState = false, isQuizInitialized = false;
+  let isFirstPageLoad = true; 
+  let currentGetSessionToken = 0; 
   const colorClasses = ['color-red', 'color-green', 'color-blue', 'color-yellow'];
 
-  function generateCleanID() {
-    return 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-  }
+  const generateCleanID = () => 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
 
-  // RECEPTOR CENTRALIZADO: Procesa los puntos y el ranking devueltos por Google
-  // RECEPTOR CENTRALIZED: Formatea los puntos a un máximo de 2 decimales y actualiza las vistas
   function handleLeaderboardData(payload) {
-    const badgeElement = document.getElementById('badge');
+    const badge = document.getElementById('badge');
+    const activeScript = document.getElementById('jsonp-runner');
     
-    // 1. Estructuramos el string de la puntuación basado en la respuesta del servidor
+    // FIREWALL ASÍNCRONO: Validamos si la respuesta viene de una llamada vieja rezagada
+    if (activeScript) {
+      const scriptToken = Number(activeScript.getAttribute('data-token'));
+      if (scriptToken !== currentGetSessionToken) {
+        console.log("Petición fantasma del pasado interceptada y destruida con éxito.");
+        return; // Abortamos la ejecución de forma silenciosa. El badge se queda en gris mate.
+      }
+    }
+    const serverCurrent = Number(payload.currentQuestion);
+    const serverActive = Number(payload.activeQuestion);
+    totalQuestionsCount = Number(payload.totalQuestions) || 99;
+
+    // 1. MÁQUINA DE ESTADOS VISUAL DEL BADGE (REQUERIMIENTO GRIS EN ESPERA)
     let pointsText = "";
+    let badgeColor = "#38a169"; // Verde por defecto
+    let shouldShowBadge = true;
+
     if (payload.points === "No points yet") {
-      pointsText = "Points: No points yet";
+      if (isWaitingState) {
+        // REQUERIMIENTO: Mientras esté esperando en el limbo y el primer GET (o sucesivos) no traiga puntos, se queda en gris
+        pointsText = "Computing points...";
+        badgeColor = "#7f8c8d"; // Gris neutro
+      } else {
+        pointsText = "Points: No points yet";
+        badgeColor = "#e53e3e"; // Rojo si es un error real en preguntas activas
+      }
     } else {
-      // AJUSTE DE FORMATO COMPILADO: Forzamos un máximo de 2 decimales limpios sin ceros a la derecha innecesarios
-      const formattedPoints = parseFloat(Number(payload.points).toFixed(2));
-      
-      const positionSuffix = payload.position !== undefined && payload.position !== "" ? ` (#${payload.position} position)` : "";
-      pointsText = `Points: <span id="points-value">${formattedPoints}</span>${positionSuffix}`;
+      // Si el servidor ya devolvió puntos válidos, conmutamos inmediatamente a verde con la nota real
+      pointsText = `Points: <span id="points-value">${parseFloat(Number(payload.points).toFixed(2))}</span>${payload.position ? ` (#${payload.position} position)` : ""}`;
+      badgeColor = "#38a169";
     }
     
-    // Aseguramos que la medalla sea siempre visible (tanto en el quiz como en la pantalla final)
-    badgeElement.innerHTML = pointsText;
-    badgeElement.style.background = (payload.points === "No points yet") ? "#e53e3e" : "#38a169";
-    badgeElement.style.display = 'block';
+    badge.innerHTML = pointsText;
+    badge.style.background = badgeColor;
 
-    // 2. Si el contenedor estaba oculto por la carga intermedia, lo volvemos a levantar con la nueva pregunta
-    if (document.getElementById('quiz-container').style.display === 'none') {
+    // El badge se oculta estrictamente solo si el alumno está respondiendo la Q0 (Nombre) de forma activa
+    if (currentQuestionIndex === 0 && !isWaitingState) {
+      badge.style.display = 'none';
+    } else {
+      badge.style.display = 'block'; // Visible en salas de espera, preguntas 1+ y gracias
+    }
+
+    // ADUANA INICIAL PARA ALUMNOS TARDÍOS
+    if (isFirstPageLoad) {
+      isFirstPageLoad = false; 
+      if (payload.points === "No points yet" && serverCurrent > 0) {
+        if (pollingIntervalId) clearInterval(pollingIntervalId);
+        document.getElementById('quiz-container').style.display = 'none';
+        badge.style.display = 'none';
+        document.getElementById('loading').innerText = "Quiz already started";
+        document.getElementById('loading').style.display = 'block';
+        return;
+      }
+    }
+
+    // ESTADO 1: RETENCIÓN INICIAL
+    if (!isQuizInitialized && serverCurrent === -1) {
+      document.getElementById('quiz-container').style.display = 'none';
+      badge.style.display = 'none';
+      document.getElementById('loading').innerText = "The Quiz hasn't started yet";
+      document.getElementById('loading').style.display = 'block';
+      return; 
+    }
+
+    if (serverCurrent >= 0) isQuizInitialized = true; 
+
+    // ESTADO 2: INTERRUPCIÓN EN CALIENTE (KICK OUT DESDE PROFESOR)
+    if (!isWaitingState && currentQuestionIndex > 0 && serverActive > currentQuestionIndex) {
+      isWaitingState = true;
+      const currentStep = document.getElementById('step-' + currentQuestionIndex);
+      if (currentStep) currentStep.remove(); 
+      
+      document.getElementById('quiz-container').style.display = 'none';
+      
+      // Al ser expulsado en caliente, forzamos el badge a gris de espera inmediatamente
+      badge.innerHTML = "Computing points...";
+      badge.style.background = "#7f8c8d";
+      badge.style.display = 'block';
+      
+      document.getElementById('loading').innerText = "Waiting for next question...";
+      document.getElementById('loading').style.display = 'block';
+      
+      targetQuestionIndex = serverActive; 
+      return;
+    }
+
+    // ESTADO 3: SEMÁFORO DE AVANCE LINEAL
+    if (isWaitingState && serverCurrent >= targetQuestionIndex && payload.question) {
+      isWaitingState = false;
+      currentQuestionIndex = serverCurrent; 
+      
+      renderDynamicQuestion(payload.question, currentQuestionIndex);
       document.getElementById('loading').style.display = 'none';
       document.getElementById('quiz-container').style.display = 'block';
-      
-      const targetStep = document.getElementById('step-' + currentQuestionIndex);
-      if (targetStep) {
-        targetStep.classList.add('active');
-      }
-      questionStartTime = Date.now(); 
+      questionStartTime = Date.now();
+      return;
+    }
+
+    // CARGA DE PREGUNTA INICIAL (Q0 - Nombre)
+    if (currentQuestionIndex === 0 && serverCurrent === 0 && document.getElementById('quiz-container').style.display === 'none' && !isWaitingState && payload.question) {
+      renderDynamicQuestion(payload.question, 0);
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('quiz-container').style.display = 'block';
+      questionStartTime = Date.now();
+      return;
     }
   }
 
 
   function fetchPointsFromLeaderboard() {
-    const oldScript = document.getElementById('jsonp-runner');
-    if (oldScript) oldScript.remove();
+    const old = document.getElementById('jsonp-runner');
+    if (old) old.remove();
+
+    // Guardamos el token que está activo en el momento exacto de disparar la red
+    const tokenAtTriggerTime = currentGetSessionToken;
 
     const script = document.createElement('script');
     script.id = 'jsonp-runner';
+    // Le pasamos el token en la URL para que regrese en la respuesta si fuera necesario, 
+    // pero al ser una clausura de JavaScript, handleLeaderboardData lo evaluará de forma nativa.
     script.src = `${API_URL}?user=${studentUid}&callback=handleLeaderboardData&t=${Date.now()}`;
+    
+    // Vinculamos de forma estricta el token al contexto de ejecucion de esta llamada específica
+    script.setAttribute('data-token', tokenAtTriggerTime);
+    
     document.body.appendChild(script);
   }
 
-  // BUCLE EN SEGUNDO PLANO (POLLING): Acelerado a 5 segundos de forma perpetua
-  function startPointsPolling() {
-    if (pollingIntervalId) clearInterval(pollingIntervalId);
-    
-    pollingIntervalId = setInterval(() => {
-      // Solo lanzamos la consulta silenciosa si el navegador no está en la pantalla intermedia de carga "Computing score..."
-      if (document.getElementById('loading').style.display === 'none') {
-        fetchPointsFromLeaderboard();
-      }
-    }, 5000); // REQUERIMIENTO: 5000 milisegundos
-  }
-
   window.onload = function() {
+    // CORREGIDO: Eliminamos localStorage para forzar la generación de un ID único en cada F5
     studentUid = generateCleanID();
+
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('quiz-container').style.display = 'none';
     
-    fetch('questions.json')
-      .then(res => res.json())
-      .then(data => {
-        questions = data;
-        renderQuizStructure(); 
-        
-        // Forzamos el encendido visual inicial de la primera pregunta en local
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('quiz-container').style.display = 'block';
-        document.getElementById('step-0').classList.add('active');
-        questionStartTime = Date.now();
-        
-        // Sincronización inicial y activación del bucle intermitente de 5s
-        fetchPointsFromLeaderboard();
-        startPointsPolling(); 
-      })
-      .catch(err => {
-        document.getElementById('loading').innerText = "Error loading local questions.json file.";
-        console.error(err);
-      });
+    // Lanzamos la petición de red inicial con el ID completamente nuevo
+    fetchPointsFromLeaderboard();
+    pollingIntervalId = setInterval(fetchPointsFromLeaderboard, 5000);
   };
 
-  function renderQuizStructure() {
+
+  function renderDynamicQuestion(q, idx) {
     const container = document.getElementById('quiz-container');
     container.innerHTML = ""; 
+    const stepDiv = document.createElement('div');
+    stepDiv.id = 'step-' + idx;
+    stepDiv.className = 'step active';
 
-    questions.forEach((q, index) => {
-      const stepDiv = document.createElement('div');
-      stepDiv.id = 'step-' + index;
-      stepDiv.className = 'step';
+    let inputHtml = '';
+    if (q.type === 'checkbox' || q.type === 'radio') {
+      inputHtml = `<div class="choice-container">`;
+      q.choices.forEach((c, i) => {
+        inputHtml += `<label class="choice-option ${colorClasses[i % 4]}"><input type="${q.type}" name="q-${idx}" value="${c}"><span>${c}</span></label>`;
+      });
+      inputHtml += `</div>`;
+    } else {
+      inputHtml = `<input type="text" id="input-${idx}" placeholder="Type your answer here...">`;
+    }
 
-      let inputHtml = '';
-      if (q.type === 'checkbox') {
-        inputHtml = `<div class="choice-container">`;
-        q.choices.forEach((choice, cIndex) => {
-          inputHtml += `<label class="choice-option ${colorClasses[cIndex % colorClasses.length]}"><input type="checkbox" name="q-${index}" value="${choice}"><span>${choice}</span></label>`;
-        });
-        inputHtml += `</div>`;
-      } else if (q.type === 'radio') {
-        inputHtml = `<div class="choice-container">`;
-        q.choices.forEach((choice, cIndex) => {
-          inputHtml += `<label class="choice-option ${colorClasses[cIndex % colorClasses.length]}"><input type="radio" name="q-${index}" value="${choice}"><span>${choice}</span></label>`;
-        });
-        inputHtml += `</div>`;
-      } else {
-        inputHtml = `<input type="text" id="input-${index}" placeholder="Type your answer here...">`;
-      }
+    let imageHtml = (q.image && q.image.trim() !== "") ? `<img src="${q.image.trim()}" class="question-image" alt="Question illustration">` : '';
 
-      // REQUERIMIENTO: El botón de la última sección ahora muestra textualmente "End Quiz"
-      stepDiv.innerHTML = `
-        <div class="section-header"><div class="section-title">${q.sectionName}</div></div>
-        <p><strong>${q.title}</strong></p>
-        ${inputHtml}
-        <br>
-        <button id="btn-${index}" onclick="submitStep(${index})">
-          ${index === questions.length - 1 ? 'End Quiz' : 'Next Question →'}
-        </button>
-      `;
-      container.appendChild(stepDiv);
-    });
+    stepDiv.innerHTML = `<div class="section-header"><div class="section-title">${q.sectionName}</div></div>
+      <p><strong>${q.title}</strong></p>${imageHtml}${inputHtml}<br>
+      <button id="btn-${idx}" onclick="submitStep(${idx})">${idx === totalQuestionsCount - 1 ? 'End Quiz' : 'Next Question →'}</button>`;
+    container.appendChild(stepDiv);
   }
 
   function submitStep(index) {
-    const q = questions[index];
     const btn = document.getElementById('btn-' + index);
-    let value = '';
+    let value = '', qType = 'text';
 
-    if (q.type === 'checkbox') {
-      const checkedBoxes = document.querySelectorAll(`input[name="q-${index}"]:checked`);
-      value = Array.from(checkedBoxes).map(cb => cb.value);
-    } else if (q.type === 'radio') {
-      const selected = document.querySelector(`input[name="q-${index}"]:checked`);
-      value = selected ? selected.value : '';
+    if (document.querySelector(`input[name="q-${index}"][type="checkbox"]`)) qType = 'checkbox';
+    else if (document.querySelector(`input[name="q-${index}"][type="radio"]`)) qType = 'radio';
+
+    if (qType === 'checkbox') {
+      value = Array.from(document.querySelectorAll(`input[name="q-${index}"]:checked`)).map(cb => cb.value);
+    } else if (qType === 'radio') {
+      const sel = document.querySelector(`input[name="q-${index}"]:checked`);
+      value = sel ? sel.value : '';
     } else {
-      const textInput = document.getElementById('input-' + index);
-      value = textInput ? textInput.value : '';
+      value = document.getElementById('input-' + index).value;
     }
 
-    let isCorrect = "-"; 
-    if (q.correctAnswer !== "" && q.correctAnswer !== undefined && q.correctAnswer !== null) {
-      if (q.type === 'checkbox') {
-        const studentAnswers = Array.isArray(value) ? value : (value ? [value] : []);
-        const correctAnswers = Array.isArray(q.correctAnswer) ? q.correctAnswer : [q.correctAnswer];
-        const studentSorted = studentAnswers.map(String).sort().join(';');
-        const correctSorted = correctAnswers.map(String).sort().join(';');
-        isCorrect = (studentSorted === correctSorted) ? "1" : "0";
-      } else {
-        const studentStr = value !== undefined && value !== null ? String(value).trim() : "";
-        const correctStr = String(q.correctAnswer).trim();
-        isCorrect = (studentStr === correctStr) ? "1" : "0";
-      }
-    } else {
-      isCorrect = "-";
-    }
-
-    const timeTaken = Date.now() - questionStartTime;
-    btn.innerText = "Loading...";
+    btn.innerText = "Loading..."; 
     btn.disabled = true;
+    
+    const currentStep = document.getElementById('step-' + index);
+    if (currentStep) currentStep.remove();
 
-    // Desactivamos la sección de la pregunta actual en la interfaz
-    document.getElementById('step-' + index).classList.remove('active');
+    // SOLUCIÓN AL PARPADEO: Matamos el intervalo viejo de fondo inmediatamente.
+    // Esto impide que consultas intermitentes residuales de la pantalla anterior se disparen a destiempo.
+    if (pollingIntervalId) {
+      clearInterval(pollingIntervalId);
+      pollingIntervalId = null;
+    }
+    currentGetSessionToken++; 
 
-    if (index < questions.length - 1) {
-      // TRANSICIÓN INTERMEDIA: Ocultamos el recuadro blanco de la pregunta
+    if (index < totalQuestionsCount - 1) {
       document.getElementById('quiz-container').style.display = 'none';
-      
-      // REQUERIMIENTO: Cambiamos el texto del Badge superior a "Computing score..." con fondo de espera gris neutro
-      const badgeElement = document.getElementById('badge');
-      badgeElement.innerHTML = "Computing score...";
-      badgeElement.style.background = "#7f8c8d"; // Gris neutro
-      badgeElement.style.display = 'block';
+      document.getElementById('loading').innerText = "Waiting for next question...";
+      document.getElementById('loading').style.display = 'block';
 
-      const loadingElement = document.getElementById('loading');
-      loadingElement.innerText = "Loading next question...";
-      loadingElement.style.display = 'block';
-      
-      currentQuestionIndex = index + 1; 
+      // Forzamos el estado gris de espera de forma rígida
+      const badge = document.getElementById('badge');
+      badge.innerHTML = "Computing points...";
+      badge.style.background = "#7f8c8d"; // Gris neutro
+      badge.style.display = 'block'; 
+
+      targetQuestionIndex = index + 1;
+      isWaitingState = true;
+    } else {
+      const badge = document.getElementById('badge');
+      badge.innerHTML = "Computing points...";
+      badge.style.background = "#7f8c8d";
+      badge.style.display = 'block';
     }
 
-    // Petición POST de guardado secuencial rápido hacia la pestaña Raw
+    // Petición POST de escritura síncrona
     fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain' }, 
-      body: JSON.stringify({
-        studentUid: studentUid,
-        qIndex: index,
-        value: value,
-        timeTaken: timeTaken,
-        isCorrect: isCorrect 
-      })
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ studentUid, qIndex: index, value, timeTaken: Date.now() - questionStartTime })
     })
     .then(res => res.json())
     .then(() => {
-      if (index < questions.length - 1) {
-        // Ejecuta la lectura secuencial. Al regresar, handleLeaderboardData() restaurará el badge a verde/rojo
-        fetchPointsFromLeaderboard(); 
-      } else {
-        // REQUERIMIENTO PANTALLA FINAL: El recuadro blanco queda limpio y la medalla superior verde permanece fija
+      if (index === totalQuestionsCount - 1) {
         document.getElementById('quiz-container').style.display = 'block';
-        document.getElementById('quiz-container').innerHTML = `
-          <div class='quiz-success-title'>Thanks!</div>
-          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>
-        `;
+        document.getElementById('quiz-container').innerHTML = `<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>`;
         
-        // Ejecutamos una llamada de lectura inmediata al terminar para forzar la actualización del badge verde final
-        fetchPointsFromLeaderboard(); 
+        // Lanzamos el primer GET de la pantalla final y activamos su bucle perpetuo de 5s
+        fetchPointsFromLeaderboard();
+        pollingIntervalId = setInterval(fetchPointsFromLeaderboard, 5000);
+      } else {
+        // GARANTÍA SECUENCIAL: El POST ya cerró su conexión física. Ahora sí, lanzamos
+        // el primer GET de esta instancia de espera y activamos su nuevo intervalo limpio.
+        fetchPointsFromLeaderboard();
+        pollingIntervalId = setInterval(fetchPointsFromLeaderboard, 5000);
       }
     })
     .catch(err => {
