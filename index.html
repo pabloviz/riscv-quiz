@@ -89,10 +89,6 @@
 </div>
 
   <script>
-  if (!window.location.search.includes('v=')) {
-    const querySeparator = window.location.search ? '&' : '?';
-    window.location.replace(window.location.pathname + window.location.search + querySeparator + 'v=' + Date.now());
-  }
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
   let studentUid = '', questionStartTime = null, totalQuestionsCount = 99;
@@ -218,12 +214,16 @@
     const old = document.getElementById('jsonp-runner');
     if (old) old.remove();
 
+    // Guardamos el token que está activo en el momento exacto de disparar la red
     const tokenAtTriggerTime = currentGetSessionToken;
+
     const script = document.createElement('script');
     script.id = 'jsonp-runner';
-    
-    // El parámetro &t= asegura que el navegador del móvil no cachee el GET de Google
+    // Le pasamos el token en la URL para que regrese en la respuesta si fuera necesario, 
+    // pero al ser una clausura de JavaScript, handleLeaderboardData lo evaluará de forma nativa.
     script.src = `${API_URL}?user=${studentUid}&callback=handleLeaderboardData&t=${Date.now()}`;
+    
+    // Vinculamos de forma estricta el token al contexto de ejecucion de esta llamada específica
     script.setAttribute('data-token', tokenAtTriggerTime);
     
     document.body.appendChild(script);
