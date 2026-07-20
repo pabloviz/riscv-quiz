@@ -89,6 +89,13 @@
 </div>
 
   <script>
+  if (!sessionStorage.getItem('forced_cache_bust_completed')) {
+    // Marcamos el testigo en la memoria interna de la pestaña
+    sessionStorage.setItem('forced_cache_bust_completed', 'true');
+    
+    // Forzamos al navegador a recargar la URL actual saltándose la caché físicamente
+    window.location.reload();
+  }
     // URL EXACTA CONFIRMADA
     const API_URL = 'https://script.google.com/macros/s/AKfycbxNFJi0U7h0YS1N_idHUzokdtFCgJz0w7c58YIPJNGsYdFCfQcdjhkrdiTHy0gAJYwOcA/exec';
   let studentUid = '', questionStartTime = null, totalQuestionsCount = 99;
