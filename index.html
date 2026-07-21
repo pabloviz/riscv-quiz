@@ -172,6 +172,20 @@
   };
 
   function handleLeaderboardData(payload) {
+    if (payload && payload.status === "KILL_POLLING") {
+      if (pollingIntervalId) { 
+        clearInterval(pollingIntervalId); 
+        pollingIntervalId = null; 
+      }
+      console.log("Servidor pausado en celda B3. Radares apagados.");
+      
+      document.getElementById('quiz-container').style.display = 'none';
+      if (badge) badge.style.display = 'none';
+      document.getElementById('loading').innerText = "The Quiz has been paused by the professor. Please wait or refresh later.";
+      document.getElementById('loading').style.display = 'block';
+      return; // Cortamos el hilo de ejecución de forma fulminante
+    }
+
     const badge = document.getElementById('badge');
     const serverCurrent = Number(payload.currentQuestion);
     const serverActive = Number(payload.activeQuestion);
@@ -193,21 +207,16 @@
     if (successParagraph) { if (badge) badge.style.display = 'block'; return; }
 
     // ADUANA INICIAL PARA ALUMNOS TARDÍOS
-    // ====================================================
-    // ADUANA INTERACTIVA PARA ALUMNOS TARDÍOS (REEMPLAZO)
-    // ====================================================
     if (isFirstPageLoad) {
       isFirstPageLoad = false; 
       
-      // Si el alumno entra tarde (serverCurrent > 0) y no tiene puntos registrados:
       if (payload.points === "No points yet" && serverCurrent > 0) {
-        if (pollingIntervalId) clearInterval(pollingIntervalId); // Pausamos la red momentáneamente
+        if (pollingIntervalId) clearInterval(pollingIntervalId); 
         
         const container = document.getElementById('quiz-container');
         if (container) {
-          container.innerHTML = ""; // Limpiamos residuos
+          container.innerHTML = ""; 
           
-          // Redibujamos la pantalla "Quiz already started" inyectándole el campo del Nombre integrado
           document.getElementById('loading').innerHTML = `
             <div style="font-size: 24px; color: #2c3e50; font-weight: 700; margin-bottom: 10px;">Quiz already started</div>
             <p style="font-size: 16px; color: #7f8c8d; margin-bottom: 20px;">Don't worry, you can still join the lecture. Please enter your name below:</p>
@@ -219,21 +228,16 @@
           document.getElementById('loading').style.display = 'block';
           if (badge) badge.style.display = 'none';
         }
-        return; // Detenemos la máquina de estados en esta pantalla de registro seguro
+        return; 
       }
     }
 
-
-    // ====================================================
     // ESTADO 1: RETENCIÓN INICIAL Y REGENERACIÓN DE ID POR RESET
-    // ====================================================
     if (serverCurrent === -1) {
       isQuizInitialized = false; 
       isWaitingState = false;    
       currentQuestionIndex = 0;  
       
-      // REQUERIMIENTO: Al resetear la sesión, el alumno genera una nueva identidad 
-      // de forma automática para no contaminar el historial del Leaderboard
       studentUid = generateCleanID(); 
       console.log("Quiz reseteado en la nube. Nueva identidad generada:", studentUid);
       
@@ -245,25 +249,39 @@
     }
     if (serverCurrent >= 0) isQuizInitialized = true;
 
-    // ESTADO 2: KICK OUT DESDE PROFESOR
-    if (!isWaitingState && currentQuestionIndex > 0 && serverActive > currentQuestionIndex) {
+    // ==========================================
+    // ESTADO 2: KICK OUT DESDE PROFESOR (CORREGIDO)
+    // ==========================================
+    if (!isWaitingState && currentQuestionIndex >= 0 && serverActive > currentQuestionIndex) {
       isWaitingState = true;
       const currentStep = document.getElementById('step-' + currentQuestionIndex); if (currentStep) currentStep.remove(); 
+      
       document.getElementById('quiz-container').style.display = 'none';
       if (badge) badge.style.display = 'none'; 
-      document.getElementById('loading').innerText = "Waiting for next question...";
+      
+      // INYECCIÓN ORGÁNICA: Colocamos el aviso de tiempo agotado en el mismo recuadro justo encima del texto de espera
+      document.getElementById('loading').innerHTML = `
+        <div id="feedback-banner" style="color:#9b2c2c; background:#fff5f5; border:1px solid #fed7d7; padding:12px; border-radius:8px; margin-bottom:15px; font-weight:bold; font-size:16px; text-align:center;">
+          Ran out of time to answer
+        </div>
+        <div style="font-size:18px; color:#7f8c8d; font-weight:600;">Waiting for next question...</div>
+      `;
       document.getElementById('loading').style.display = 'block';
+      
       targetQuestionIndex = serverActive; return;
     }
 
+
     // ESTADO 3: SEMÁFORO DE AVANCE LINEAL
-    if (isWaitingState && serverCurrent >= targetQuestionIndex && payload.question) {
+    if (isWaitingState && serverCurrent === serverActive && serverCurrent >= targetQuestionIndex && payload.question) {
       isWaitingState = false; currentQuestionIndex = serverCurrent; 
       renderDynamicQuestion(payload.question, currentQuestionIndex);
       document.getElementById('loading').style.display = 'none';
       document.getElementById('quiz-container').style.display = 'block';
       questionStartTime = Date.now(); return;
     }
+
+
 
     // CARGA DE PREGUNTA INICIAL (Q0 - Nombre) - SIMPLIFICADA SIN DEPENDENCIAS DE TEXTO
     if (currentQuestionIndex === 0 && serverCurrent === 0 && !isWaitingState && payload.question) {
