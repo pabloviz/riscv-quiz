@@ -30,7 +30,7 @@
       flex-direction: column; 
       align-items: center; 
       width: 90%; 
-      max-width: 650px; 
+      max-width: 800px; 
       gap: 15px; 
       box-sizing: border-box; 
       /* COLCHÓN VERTICAL DE AIRE: Crea un espacio de seguridad de 40px arriba y abajo.
@@ -284,17 +284,14 @@
       let imageHtml = (q.image && q.image.trim() !== "") ? `<img src="${q.image.trim()}" class="question-image" alt="Question illustration">` : '';
 
       // CAMBIO MÍNIMO: Envolvemos la imagen y la zona del texto dentro del contenedor elástico .question-body
-      stepDiv.innerHTML = `
+			stepDiv.innerHTML = `
         <div class="section-header"><div class="section-title">${q.sectionName}</div></div>
-        <div class="question-body">
-          ${imageHtml}
-          <div class="question-content">
-            <p><strong>${q.title}</strong></p>
-            ${inputHtml}
-          </div>
-        </div>
+        <p><strong>${q.title}</strong></p>
+        ${imageHtml} 
+        ${inputHtml}
         <br>
         <button id="btn-${idx}" onclick="submitStep(${idx})">${idx === totalQuestionsCount - 1 ? 'End Quiz' : 'Next Question →'}</button>`;
+      
       
       container.appendChild(stepDiv);
     }
