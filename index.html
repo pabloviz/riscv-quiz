@@ -327,21 +327,31 @@
     });
   }
 
-
   function renderDynamicQuestion(q, idx) {
     const container = document.getElementById('quiz-container'); container.innerHTML = ""; 
     const stepDiv = document.createElement('div'); stepDiv.id = 'step-' + idx; stepDiv.className = 'step active';
 
     let inputHtml = '';
     if (q.type === 'checkbox' || q.type === 'radio') {
-      inputHtml = `<div class="choice-container">`;
-      q.choices.forEach((c, i) => { inputHtml += `<label class="choice-option ${colorClasses[i % 4]}"><input type="${q.type}" name="q-${idx}" value="${c}"><span>${c}</span></label>`; });
+      // INYECCIÓN DE TEXTO DE AYUDA: Evaluamos el tipo de pregunta en caliente
+      const helpText = (q.type === 'radio') ? 'One correct answer' : 'More than one correct answer';
+      
+      inputHtml = `
+        <div style="font-size: 20px; color: #e53e3e; font-weight: 700; text-align: left; margin: 2px 0 2px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${helpText}
+        </div>
+        <div class="choice-container">`;
+        
+      q.choices.forEach((c, i) => { 
+        inputHtml += `<label class="choice-option ${colorClasses[i % 4]}"><input type="${q.type}" name="q-${idx}" value="${c}"><span>${c}</span></label>`; 
+      });
       inputHtml += `</div>`;
-    } else { inputHtml = `<input type="text" id="input-${idx}" placeholder="Type your answer here...">`; }
+    } else { 
+      inputHtml = `<input type="text" id="input-${idx}" placeholder="Type your answer here...">`; 
+    }
 
     let imageHtml = (q.image && q.image.trim() !== "") ? `<img src="${q.image.trim()}" class="question-image" alt="Question illustration">` : '';
 
-    // ORDEN DE LA IMAGEN: Sólido entre pregunta y opciones
     stepDiv.innerHTML = `
       <div class="section-header"><div class="section-title">${q.sectionName}</div></div>
       <p><strong>${q.title}</strong></p>
@@ -350,6 +360,8 @@
       <button id="btn-${idx}" onclick="submitStep(${idx})">Next Question →</button>`;
     container.appendChild(stepDiv);
   }
+
+
 
   function submitStep(index) {
     const btn = document.getElementById('btn-' + index); let value = '', qType = 'text';
@@ -379,19 +391,22 @@
     .then(res => res.json())
     .then(postResponse => {
       
-      // INYECCIÓN ORGÁNICA UNIFICADA DENTRO DEL RECUADRO BLANCO DE ESPERA
-      if (index < totalQuestionsCount - 1 && postResponse.success && postResponse.score !== undefined && postResponse.score !== "-") {
+      // 1. PROCESAMOS EL CALCULO DE LA NOTA DEL POST EN COLECTIVO (Para usarse en cualquier pregunta)
+      let alertText = "";
+      let alertColor = "#2c3e50";
+      let tieneNotaValida = postResponse.success && postResponse.score !== undefined && postResponse.score !== "-";
+      
+      if (tieneNotaValida) {
         const numScore = Number(postResponse.score);
+        if (numScore >= 0.99) { alertText = "Correct answer!"; alertColor = "#2f855a"; } 
+        else if (numScore > 0.01 && numScore < 0.99) { alertText = "Partially correct answer!"; alertColor = "#c05621"; } 
+        else { alertText = "Incorrect answer."; alertColor = "#991b1b"; }
+      }
+
+      // INYECCIÓN ORGÁNICA UNIFICADA DENTRO DEL RECUADRO BLANCO DE ESPERA
+      if (index < totalQuestionsCount - 1) {
         const loadingElement = document.getElementById('loading');
-        
-        if (loadingElement) {
-          let alertText = "";
-          let alertColor = "#2c3e50"; // Color por defecto si falla
-          
-          if (numScore >= 0.99) { alertText = "Correct answer!"; alertColor = "#2f855a"; } 
-          else if (numScore > 0.01 && numScore < 0.99) { alertText = "Partially correct answer!"; alertColor = "#c05621"; } 
-          else { alertText = "Incorrect answer."; alertColor = "#991b1b"; }
-          
+        if (loadingElement && tieneNotaValida) {
           // Reescribimos el interior de la caja de carga metiendo el feedback con su color encima del texto de espera
           loadingElement.innerHTML = `
             <div style="color:${alertColor}; font-size:22px; font-weight:700; margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">${alertText}</div>
@@ -400,13 +415,40 @@
         }
       }
 
-      // Tu flujo original final intacto para el cierre del Quiz
+      // ====================================================
+      // COBERTURA PARA LA ULTIMA PREGUNTA (CORREGIDO)
+      // ====================================================
       if (index === totalQuestionsCount - 1) {
         if (pollingIntervalId) clearInterval(pollingIntervalId);
+        
+        // 1. DIBUJAMOS LA TARJETA DE DESPEDIDA CON SU FEEDBACK
+        let finalFeedbackHtml = tieneNotaValida ? `<div style="color:${alertColor}; font-size:22px; font-weight:700; margin-bottom:20px; text-transform:uppercase; letter-spacing:0.5px;">${alertText}</div>` : '';
+        
         document.getElementById('quiz-container').style.display = 'block';
-        document.getElementById('quiz-container').innerHTML = `<div class='quiz-success-title'>Thanks!</div><div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>`;
+        document.getElementById('quiz-container').innerHTML = `
+          ${finalFeedbackHtml}
+          <div class='quiz-success-title'>Thanks!</div>
+          <div class='quiz-success-p'>We hope you enjoyed the quiz for this lecture.</div>`;
+
+        // 2. RESTAURACIÓN VISUAL DEL BADGE: Volvemos a encender la medalla verde de puntos 
+        // para que el estudiante vea su rendimiento acumulado final y su posición en el ranking
+        const finalBadge = document.getElementById('badge');
+        if (finalBadge) {
+          // Si el servidor nos envió puntos en la respuesta del POST, podemos actualizar el valor al vuelo,
+          // de lo contrario, simplemente forzamos que se muestre el badge verde con el último estado guardado.
+          finalBadge.style.display = 'block';
+          
+          // Opcional: Si tu doPost devuelve los puntos acumulados en 'postResponse.totalPoints', 
+          // podrías descomentar la línea de abajo para una precisión milimétrica inmediata:
+          // if (postResponse.totalPoints) finalBadge.innerHTML = `Points: ${parseFloat(Number(postResponse.totalPoints).toFixed(2))}`;
+        }
+
+      } else {
+        // El bucle de fondo solo vuelve a encenderse si quedan más preguntas por responder
+        fetchPointsFromLeaderboard(); 
+        pollingIntervalId = setInterval(fetchPointsFromLeaderboard, 5000);
       }
-      fetchPointsFromLeaderboard(); pollingIntervalId = setInterval(fetchPointsFromLeaderboard, 5000);
+
     });
   }
 
